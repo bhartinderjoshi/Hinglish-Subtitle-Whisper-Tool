@@ -3,146 +3,165 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Subtitle Editor - Whisper Hindi2Hinglish</title>
+    <title>Video Subtitle Editor</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
+        .subtitle-overlay {
+            position: absolute;
+            bottom: 60px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 4px;
+            font-size: 20px;
+            font-weight: 500;
+            text-align: center;
+            max-width: 80%;
+            line-height: 1.4;
+            pointer-events: none;
+            z-index: 10;
+        }
+        
+        .video-container {
+            position: relative;
+            background: #000;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        
         .subtitle-item {
             transition: all 0.2s;
         }
+        
         .subtitle-item:hover {
-            background-color: #f1f5f9;
+            background: #f1f5f9;
         }
+        
         .subtitle-item.active {
-            background-color: #dbeafe;
-            border-left: 4px solid #3b82f6;
+            background: #dbeafe;
+            border-left: 3px solid #3b82f6;
         }
-        video {
-            max-width: 100%;
-            border-radius: 8px;
-        }
+        
         .time-input {
-            width: 80px;
-            font-family: monospace;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
         }
     </style>
 </head>
-<body class="bg-slate-50 min-h-screen p-4">
-    <div class="max-w-7xl mx-auto py-8">
-        <!-- Header -->
-        <div class="text-center mb-8">
-            <h1 class="text-4xl font-bold text-gray-900 mb-2">
-                🎬 Subtitle Editor
-            </h1>
-            <p class="text-gray-600">Upload video, generate Hinglish captions, edit & download SRT</p>
-        </div>
-
-        <!-- Main Container -->
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <!-- Left Panel - Video Upload & Player -->
-            <div class="space-y-6">
-                <!-- Upload Section -->
-                <div id="uploadSection" class="bg-white rounded-lg shadow p-6">
-                    <h2 class="text-xl font-bold mb-4">1. Upload Video</h2>
-                    
-                    <form id="uploadForm" enctype="multipart/form-data">
-                        <div id="uploadArea" class="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center cursor-pointer hover:border-blue-500 transition">
-                            <input type="file" id="videoFile" name="video" accept="video/*" required class="hidden">
-                            <div class="flex flex-col items-center gap-3">
-                                <svg class="w-12 h-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
-                                </svg>
-                                <p class="text-sm font-medium text-gray-700">
-                                    Click to upload or drag and drop
-                                </p>
-                                <p class="text-xs text-gray-500">MP4, AVI, MOV, MKV (Max 500MB)</p>
-                            </div>
-                        </div>
-
-                        <div id="fileInfo" class="hidden mt-4 p-3 bg-blue-50 rounded-lg">
-                            <p class="text-sm font-medium text-blue-900" id="fileName"></p>
-                        </div>
-
-                        <!-- Model & Settings -->
-                        <div class="mt-4 space-y-3">
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">AI Model</label>
-                                <select id="model" name="model" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm">
-                                    <option value="apex" selected>⭐ Apex - Best Quality</option>
-                                    <option value="prime">🏆 Prime - Excellent</option>
-                                    <option value="swift">⚡ Swift - Fast</option>
-                                </select>
-                            </div>
-
-                            <div class="grid grid-cols-3 gap-2">
-                                <div>
-                                    <label class="block text-xs text-gray-600 mb-1">Max Words</label>
-                                    <input type="number" name="maxWords" value="4" min="2" max="10" class="w-full px-2 py-1 border border-gray-300 rounded text-sm">
-                                </div>
-                                <div>
-                                    <label class="block text-xs text-gray-600 mb-1">Max Chars</label>
-                                    <input type="number" name="maxChars" value="42" min="20" max="60" class="w-full px-2 py-1 border border-gray-300 rounded text-sm">
-                                </div>
-                                <div>
-                                    <label class="block text-xs text-gray-600 mb-1">Pause Gap</label>
-                                    <input type="number" name="maxPause" value="0.5" min="0.1" max="2" step="0.1" class="w-full px-2 py-1 border border-gray-300 rounded text-sm">
-                                </div>
-                            </div>
-                        </div>
-
-                        <button type="submit" id="generateBtn" class="w-full mt-4 px-4 py-3 bg-blue-600 text-white rounded-md font-medium hover:bg-blue-700 transition">
-                            Generate Subtitles
-                        </button>
-
-                        <div id="progress" class="hidden mt-4">
-                            <div class="h-2 bg-gray-200 rounded-full overflow-hidden">
-                                <div id="progressBar" class="h-full bg-blue-600 transition-all duration-500" style="width: 0%"></div>
-                            </div>
-                            <p id="status" class="text-sm text-center text-gray-600 mt-2"></p>
-                        </div>
-                    </form>
+<body class="bg-slate-50 min-h-screen">
+    <!-- Header -->
+    <header class="bg-white border-b border-slate-200 sticky top-0 z-20">
+        <div class="max-w-7xl mx-auto px-4 py-4">
+            <div class="flex items-center justify-between">
+                <div>
+                    <h1 class="text-2xl font-bold text-slate-900">Video Subtitle Editor</h1>
+                    <p class="text-sm text-slate-600">Edit and preview your subtitles in real-time</p>
                 </div>
-
-                <!-- Video Player -->
-                <div id="playerSection" class="hidden bg-white rounded-lg shadow p-6">
-                    <h2 class="text-xl font-bold mb-4">2. Preview Video</h2>
-                    <video id="videoPlayer" controls class="w-full bg-black">
-                        <source id="videoSource" type="video/mp4">
-                    </video>
-                    <div class="mt-3 flex gap-2">
-                        <button id="playBtn" class="px-3 py-1 bg-green-600 text-white rounded text-sm hover:bg-green-700">▶ Play</button>
-                        <button id="pauseBtn" class="px-3 py-1 bg-yellow-600 text-white rounded text-sm hover:bg-yellow-700">⏸ Pause</button>
-                        <span class="ml-auto text-sm text-gray-600">
-                            <span id="currentTime">00:00</span> / <span id="duration">00:00</span>
-                        </span>
-                    </div>
+                <div class="flex gap-3">
+                    <a href="/" class="px-4 py-2 bg-slate-600 text-white rounded-lg hover:bg-slate-700 transition-colors">
+                        ← Back
+                    </a>
+                    <button id="downloadSrtBtn" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+                        📥 Download SRT
+                    </button>
                 </div>
             </div>
+        </div>
+    </header>
 
-            <!-- Right Panel - Subtitle Editor -->
-            <div class="space-y-6">
-                <div id="editorSection" class="hidden bg-white rounded-lg shadow p-6">
-                    <div class="flex items-center justify-between mb-4">
-                        <h2 class="text-xl font-bold">3. Edit Subtitles</h2>
-                        <div class="flex gap-2">
-                            <button id="addSubBtn" class="px-3 py-1 bg-green-600 text-white rounded text-sm hover:bg-green-700">
-                                + Add
-                            </button>
-                            <button id="downloadBtn" class="px-4 py-2 bg-blue-600 text-white rounded font-medium hover:bg-blue-700">
-                                ⬇ Download SRT
-                            </button>
+    <div class="max-w-7xl mx-auto px-4 py-6">
+        <!-- Upload Section -->
+        <div id="uploadSection" class="bg-white rounded-lg border border-slate-200 p-8 mb-6">
+            <form id="uploadForm" enctype="multipart/form-data">
+                <div id="uploadArea" class="border-2 border-dashed border-slate-300 rounded-lg p-12 text-center cursor-pointer hover:border-blue-500 hover:bg-blue-50 transition-all">
+                    <input type="file" id="videoFile" name="video" accept="video/*" required class="hidden">
+                    <div class="flex flex-col items-center gap-3">
+                        <div class="w-16 h-16 rounded-full bg-blue-100 flex items-center justify-center">
+                            <svg class="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
+                            </svg>
+                        </div>
+                        <div>
+                            <p class="text-sm font-medium text-slate-900 mb-1">
+                                <span class="text-blue-600">Click to upload</span> or drag and drop
+                            </p>
+                            <p class="text-xs text-slate-600">MP4, AVI, MOV, MKV, WEBM (Max 500MB)</p>
                         </div>
                     </div>
+                </div>
 
-                    <!-- Subtitle List -->
-                    <div id="subtitleList" class="space-y-2 max-h-[600px] overflow-y-auto">
-                        <!-- Subtitles will be added here dynamically -->
-                    </div>
-
-                    <div id="emptyState" class="text-center py-12 text-gray-400">
-                        <svg class="w-16 h-16 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                <div id="fileInfo" class="hidden mt-4 p-4 bg-slate-50 rounded-lg">
+                    <div class="flex items-center gap-3">
+                        <svg class="w-10 h-10 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/>
                         </svg>
-                        <p>No subtitles yet. Upload a video to generate.</p>
+                        <div class="flex-1">
+                            <p class="text-sm font-medium text-slate-900" id="fileName"></p>
+                            <p class="text-xs text-slate-600" id="fileSize"></p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6">
+                    <div>
+                        <label class="block text-sm font-medium text-slate-900 mb-2">AI Model</label>
+                        <select id="model" name="model" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                            <option value="apex">⭐ Apex - Ultimate quality</option>
+                            <option value="prime">🏆 Prime - Best quality</option>
+                            <option value="swift">⚡ Swift - Faster</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-900 mb-2">Max Words per Subtitle</label>
+                        <input type="number" id="maxWords" name="maxWords" value="4" min="1" max="10" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                    </div>
+                </div>
+
+                <button type="submit" id="generateBtn" class="w-full mt-6 px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium">
+                    Generate Subtitles
+                </button>
+
+                <div id="progress" class="hidden mt-4">
+                    <div class="h-2 bg-slate-200 rounded-full overflow-hidden">
+                        <div id="progressBar" class="h-full bg-blue-600 transition-all duration-500" style="width: 0%"></div>
+                    </div>
+                    <p id="status" class="text-sm text-center text-slate-600 mt-2"></p>
+                </div>
+            </form>
+        </div>
+
+        <!-- Editor Section -->
+        <div id="editorSection" class="hidden">
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <!-- Video Preview -->
+                <div class="bg-white rounded-lg border border-slate-200 p-4">
+                    <h2 class="text-lg font-semibold text-slate-900 mb-4">Video Preview</h2>
+                    <div class="video-container">
+                        <video id="videoPlayer" class="w-full" controls>
+                            <source id="videoSource" src="" type="video/mp4">
+                        </video>
+                        <div id="subtitleOverlay" class="subtitle-overlay hidden"></div>
+                    </div>
+                    <div class="mt-4 flex items-center gap-2">
+                        <label class="flex items-center gap-2 cursor-pointer">
+                            <input type="checkbox" id="showSubtitles" checked class="w-4 h-4 text-blue-600 rounded focus:ring-2 focus:ring-blue-500">
+                            <span class="text-sm text-slate-700">Show subtitles on video</span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Subtitle Editor -->
+                <div class="bg-white rounded-lg border border-slate-200 p-4">
+                    <div class="flex items-center justify-between mb-4">
+                        <h2 class="text-lg font-semibold text-slate-900">Subtitle Editor</h2>
+                        <button id="addSubtitleBtn" class="px-3 py-1 text-sm bg-green-600 text-white rounded hover:bg-green-700 transition-colors">
+                            + Add Subtitle
+                        </button>
+                    </div>
+                    <div id="subtitleList" class="space-y-2 max-h-[600px] overflow-y-auto">
+                        <!-- Subtitles will be populated here -->
                     </div>
                 </div>
             </div>
@@ -152,25 +171,47 @@
     <script>
         let subtitles = [];
         let videoBlob = null;
-        let currentSubIndex = -1;
+        let videoFileName = '';
 
         const uploadArea = document.getElementById('uploadArea');
         const fileInput = document.getElementById('videoFile');
+        const fileInfo = document.getElementById('fileInfo');
+        const fileName = document.getElementById('fileName');
+        const fileSize = document.getElementById('fileSize');
         const uploadForm = document.getElementById('uploadForm');
+        const generateBtn = document.getElementById('generateBtn');
+        const progress = document.getElementById('progress');
+        const progressBar = document.getElementById('progressBar');
+        const status = document.getElementById('status');
+        const uploadSection = document.getElementById('uploadSection');
+        const editorSection = document.getElementById('editorSection');
         const videoPlayer = document.getElementById('videoPlayer');
         const videoSource = document.getElementById('videoSource');
+        const subtitleOverlay = document.getElementById('subtitleOverlay');
+        const showSubtitles = document.getElementById('showSubtitles');
         const subtitleList = document.getElementById('subtitleList');
-        const emptyState = document.getElementById('emptyState');
-        const playerSection = document.getElementById('playerSection');
-        const editorSection = document.getElementById('editorSection');
+        const downloadSrtBtn = document.getElementById('downloadSrtBtn');
+        const addSubtitleBtn = document.getElementById('addSubtitleBtn');
 
-        // File upload handling
+        // Upload area interactions
         uploadArea.addEventListener('click', () => fileInput.click());
 
         ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
             uploadArea.addEventListener(eventName, (e) => {
                 e.preventDefault();
                 e.stopPropagation();
+            });
+        });
+
+        ['dragenter', 'dragover'].forEach(eventName => {
+            uploadArea.addEventListener(eventName, () => {
+                uploadArea.classList.add('border-blue-500', 'bg-blue-50');
+            });
+        });
+
+        ['dragleave', 'drop'].forEach(eventName => {
+            uploadArea.addEventListener(eventName, () => {
+                uploadArea.classList.remove('border-blue-500', 'bg-blue-50');
             });
         });
 
@@ -189,13 +230,19 @@
         });
 
         function displayFileInfo(file) {
-            document.getElementById('fileName').textContent = file.name;
-            document.getElementById('fileInfo').classList.remove('hidden');
-            
-            // Load video for preview
-            videoBlob = URL.createObjectURL(file);
-            videoSource.src = videoBlob;
-            videoPlayer.load();
+            fileName.textContent = file.name;
+            fileSize.textContent = formatFileSize(file.size);
+            fileInfo.classList.remove('hidden');
+            videoFileName = file.name;
+            videoBlob = file;
+        }
+
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
         }
 
         // Form submission
@@ -203,17 +250,12 @@
             e.preventDefault();
 
             const formData = new FormData(uploadForm);
-            formData.append('returnType', 'text'); // Request text response for editor
-            
-            const generateBtn = document.getElementById('generateBtn');
-            const progress = document.getElementById('progress');
-            const progressBar = document.getElementById('progressBar');
-            const status = document.getElementById('status');
+            formData.append('returnType', 'text');
 
             generateBtn.disabled = true;
             progress.classList.remove('hidden');
-            progressBar.style.width = '30%';
-            status.textContent = 'Uploading and processing video...';
+            progressBar.style.width = '60%';
+            status.textContent = 'Processing video and generating subtitles...';
 
             try {
                 const response = await fetch('/upload', {
@@ -222,142 +264,214 @@
                 });
 
                 if (!response.ok) {
-                    throw new Error('Upload failed');
+                    throw new Error('Failed to generate subtitles');
                 }
 
-                progressBar.style.width = '60%';
-                status.textContent = 'Generating subtitles...';
-
-                // Get SRT content
-                const srtText = await response.text();
-                
+                const srtContent = await response.text();
                 progressBar.style.width = '100%';
-                status.textContent = 'Success! Loading editor...';
+                status.textContent = 'Subtitles generated! Loading editor...';
 
-                // Parse SRT and load into editor
-                parseSRT(srtText);
-                
-                // Show video player and editor
-                playerSection.classList.remove('hidden');
-                editorSection.classList.remove('hidden');
-                
+                // Parse SRT and load editor
+                subtitles = parseSRT(srtContent);
+                loadEditor();
+
                 setTimeout(() => {
                     progress.classList.add('hidden');
                     generateBtn.disabled = false;
                     progressBar.style.width = '0%';
-                }, 2000);
+                }, 1000);
 
             } catch (error) {
                 status.textContent = 'Error: ' + error.message;
                 status.classList.add('text-red-600');
                 generateBtn.disabled = false;
+                progressBar.style.width = '0%';
             }
         });
 
-        // Parse SRT format
-        function parseSRT(srtText) {
-            subtitles = [];
-            const blocks = srtText.trim().split('\n\n');
-            
-            blocks.forEach(block => {
+        function parseSRT(srtContent) {
+            const blocks = srtContent.trim().split('\n\n');
+            return blocks.map(block => {
                 const lines = block.split('\n');
-                if (lines.length >= 3) {
-                    const index = parseInt(lines[0]);
-                    const times = lines[1].split(' --> ');
-                    const text = lines.slice(2).join('\n');
-                    
-                    subtitles.push({
-                        index: index,
-                        startTime: times[0],
-                        endTime: times[1],
-                        text: text
-                    });
-                }
+                const index = parseInt(lines[0]);
+                const times = lines[1].split(' --> ');
+                const text = lines.slice(2).join('\n');
+                
+                return {
+                    index,
+                    startTime: times[0],
+                    endTime: times[1],
+                    text
+                };
             });
-
-            renderSubtitles();
         }
 
-        // Render subtitles in editor
+        function loadEditor() {
+            // Hide upload, show editor
+            uploadSection.classList.add('hidden');
+            editorSection.classList.remove('hidden');
+
+            // Load video
+            const videoUrl = URL.createObjectURL(videoBlob);
+            videoSource.src = videoUrl;
+            videoPlayer.load();
+
+            // Render subtitles
+            renderSubtitles();
+
+            // Enable download
+            downloadSrtBtn.disabled = false;
+        }
+
         function renderSubtitles() {
-            if (subtitles.length === 0) {
-                emptyState.classList.remove('hidden');
-                return;
-            }
-
-            emptyState.classList.add('hidden');
             subtitleList.innerHTML = '';
-
+            
             subtitles.forEach((sub, idx) => {
                 const subDiv = document.createElement('div');
-                subDiv.className = 'subtitle-item p-3 border border-gray-200 rounded-lg';
+                subDiv.className = 'subtitle-item p-3 border border-slate-200 rounded-lg';
                 subDiv.dataset.index = idx;
                 
                 subDiv.innerHTML = `
-                    <div class="flex items-start gap-3">
-                        <span class="text-sm font-bold text-gray-500 mt-1">${sub.index}</span>
-                        <div class="flex-1">
-                            <div class="flex gap-2 mb-2">
-                                <input type="text" value="${sub.startTime}" 
-                                       class="time-input px-2 py-1 border border-gray-300 rounded text-xs"
-                                       onchange="updateTime(${idx}, 'start', this.value)">
-                                <span class="text-gray-400">→</span>
-                                <input type="text" value="${sub.endTime}" 
-                                       class="time-input px-2 py-1 border border-gray-300 rounded text-xs"
-                                       onchange="updateTime(${idx}, 'end', this.value)">
-                            </div>
-                            <textarea class="w-full px-2 py-1 border border-gray-300 rounded text-sm resize-none"
-                                      rows="2"
-                                      onchange="updateText(${idx}, this.value)">${sub.text}</textarea>
+                    <div class="flex items-start gap-2 mb-2">
+                        <span class="text-xs font-semibold text-slate-500 mt-1">#${sub.index}</span>
+                        <div class="flex-1 grid grid-cols-2 gap-2">
+                            <input type="text" value="${sub.startTime}" 
+                                   class="time-input px-2 py-1 text-xs border border-slate-300 rounded focus:ring-1 focus:ring-blue-500"
+                                   data-field="startTime" data-index="${idx}">
+                            <input type="text" value="${sub.endTime}" 
+                                   class="time-input px-2 py-1 text-xs border border-slate-300 rounded focus:ring-1 focus:ring-blue-500"
+                                   data-field="endTime" data-index="${idx}">
                         </div>
-                        <div class="flex flex-col gap-1">
-                            <button onclick="jumpToTime(${idx})" class="px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs hover:bg-blue-200">
-                                ▶
-                            </button>
-                            <button onclick="deleteSubtitle(${idx})" class="px-2 py-1 bg-red-100 text-red-700 rounded text-xs hover:bg-red-200">
-                                🗑
-                            </button>
-                        </div>
+                        <button class="delete-btn text-red-600 hover:text-red-700" data-index="${idx}">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                            </svg>
+                        </button>
                     </div>
+                    <textarea class="w-full px-2 py-1 text-sm border border-slate-300 rounded focus:ring-1 focus:ring-blue-500 resize-none"
+                              rows="2" data-field="text" data-index="${idx}">${sub.text}</textarea>
                 `;
                 
                 subtitleList.appendChild(subDiv);
             });
+
+            // Add event listeners
+            document.querySelectorAll('.time-input, textarea').forEach(input => {
+                input.addEventListener('input', handleSubtitleEdit);
+                input.addEventListener('click', handleSubtitleClick);
+            });
+
+            document.querySelectorAll('.delete-btn').forEach(btn => {
+                btn.addEventListener('click', handleSubtitleDelete);
+            });
         }
 
-        // Update functions
-        window.updateTime = function(idx, type, value) {
-            if (type === 'start') {
-                subtitles[idx].startTime = value;
-            } else {
-                subtitles[idx].endTime = value;
-            }
-        };
+        function handleSubtitleEdit(e) {
+            const index = parseInt(e.target.dataset.index);
+            const field = e.target.dataset.field;
+            subtitles[index][field] = e.target.value;
+        }
 
-        window.updateText = function(idx, value) {
-            subtitles[idx].text = value;
-        };
-
-        window.deleteSubtitle = function(idx) {
-            if (confirm('Delete this subtitle?')) {
-                subtitles.splice(idx, 1);
-                // Reindex
-                subtitles.forEach((sub, i) => sub.index = i + 1);
-                renderSubtitles();
-            }
-        };
-
-        window.jumpToTime = function(idx) {
-            const time = parseTimeToSeconds(subtitles[idx].startTime);
-            videoPlayer.currentTime = time;
-            videoPlayer.play();
+        function handleSubtitleClick(e) {
+            const index = parseInt(e.target.dataset.index);
+            const startTime = timeToSeconds(subtitles[index].startTime);
+            videoPlayer.currentTime = startTime;
             
             // Highlight active subtitle
-            document.querySelectorAll('.subtitle-item').forEach(el => el.classList.remove('active'));
-            document.querySelector(`[data-index="${idx}"]`).classList.add('active');
-        };
+            document.querySelectorAll('.subtitle-item').forEach(item => {
+                item.classList.remove('active');
+            });
+            e.target.closest('.subtitle-item').classList.add('active');
+        }
 
-        function parseTimeToSeconds(timeStr) {
+        function handleSubtitleDelete(e) {
+            const index = parseInt(e.target.dataset.index);
+            if (confirm('Delete this subtitle?')) {
+                subtitles.splice(index, 1);
+                // Reindex
+                subtitles.forEach((sub, idx) => {
+                    sub.index = idx + 1;
+                });
+                renderSubtitles();
+            }
+        }
+
+        // Add new subtitle
+        addSubtitleBtn.addEventListener('click', () => {
+            const currentTime = videoPlayer.currentTime;
+            const newSub = {
+                index: subtitles.length + 1,
+                startTime: secondsToTime(currentTime),
+                endTime: secondsToTime(currentTime + 3),
+                text: 'New subtitle text'
+            };
+            subtitles.push(newSub);
+            renderSubtitles();
+            subtitleList.scrollTop = subtitleList.scrollHeight;
+        });
+
+        // Video time update - show subtitle overlay
+        videoPlayer.addEventListener('timeupdate', () => {
+            if (!showSubtitles.checked) {
+                subtitleOverlay.classList.add('hidden');
+                return;
+            }
+
+            const currentTime = videoPlayer.currentTime;
+            const currentSub = subtitles.find(sub => {
+                const start = timeToSeconds(sub.startTime);
+                const end = timeToSeconds(sub.endTime);
+                return currentTime >= start && currentTime <= end;
+            });
+
+            if (currentSub) {
+                subtitleOverlay.textContent = currentSub.text;
+                subtitleOverlay.classList.remove('hidden');
+                
+                // Highlight in list
+                document.querySelectorAll('.subtitle-item').forEach((item, idx) => {
+                    if (idx === currentSub.index - 1) {
+                        item.classList.add('active');
+                        item.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                    } else {
+                        item.classList.remove('active');
+                    }
+                });
+            } else {
+                subtitleOverlay.classList.add('hidden');
+                document.querySelectorAll('.subtitle-item').forEach(item => {
+                    item.classList.remove('active');
+                });
+            }
+        });
+
+        showSubtitles.addEventListener('change', () => {
+            if (!showSubtitles.checked) {
+                subtitleOverlay.classList.add('hidden');
+            }
+        });
+
+        // Download SRT
+        downloadSrtBtn.addEventListener('click', () => {
+            const srtContent = generateSRT(subtitles);
+            const blob = new Blob([srtContent], { type: 'text/plain;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = videoFileName.replace(/\.[^/.]+$/, '') + '.srt';
+            document.body.appendChild(a);
+            a.click();
+            URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+        });
+
+        function generateSRT(subs) {
+            return subs.map(sub => {
+                return `${sub.index}\n${sub.startTime} --> ${sub.endTime}\n${sub.text}\n`;
+            }).join('\n');
+        }
+
+        function timeToSeconds(timeStr) {
             const parts = timeStr.split(':');
             const hours = parseInt(parts[0]);
             const minutes = parseInt(parts[1]);
@@ -365,60 +479,14 @@
             return hours * 3600 + minutes * 60 + seconds;
         }
 
-        // Video controls
-        document.getElementById('playBtn').addEventListener('click', () => videoPlayer.play());
-        document.getElementById('pauseBtn').addEventListener('click', () => videoPlayer.pause());
-
-        videoPlayer.addEventListener('timeupdate', () => {
-            const current = videoPlayer.currentTime;
-            document.getElementById('currentTime').textContent = formatTime(current);
-        });
-
-        videoPlayer.addEventListener('loadedmetadata', () => {
-            document.getElementById('duration').textContent = formatTime(videoPlayer.duration);
-        });
-
-        function formatTime(seconds) {
-            const h = Math.floor(seconds / 3600);
-            const m = Math.floor((seconds % 3600) / 60);
-            const s = Math.floor(seconds % 60);
-            return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+        function secondsToTime(seconds) {
+            const hours = Math.floor(seconds / 3600);
+            const minutes = Math.floor((seconds % 3600) / 60);
+            const secs = seconds % 60;
+            const ms = Math.floor((secs % 1) * 1000);
+            
+            return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(Math.floor(secs)).padStart(2, '0')},${String(ms).padStart(3, '0')}`;
         }
-
-        // Download SRT
-        document.getElementById('downloadBtn').addEventListener('click', () => {
-            let srtContent = '';
-            
-            subtitles.forEach(sub => {
-                srtContent += `${sub.index}\n`;
-                srtContent += `${sub.startTime} --> ${sub.endTime}\n`;
-                srtContent += `${sub.text}\n\n`;
-            });
-
-            const blob = new Blob([srtContent], { type: 'text/plain' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = 'subtitles_edited.srt';
-            a.click();
-            URL.revokeObjectURL(url);
-        });
-
-        // Add new subtitle
-        document.getElementById('addSubBtn').addEventListener('click', () => {
-            const newIndex = subtitles.length + 1;
-            const currentTime = formatTime(videoPlayer.currentTime);
-            const endTime = formatTime(videoPlayer.currentTime + 3);
-            
-            subtitles.push({
-                index: newIndex,
-                startTime: currentTime.replace(/:/g, ':').replace('.', ',') + ',000',
-                endTime: endTime.replace(/:/g, ':').replace('.', ',') + ',000',
-                text: 'New subtitle text'
-            });
-            
-            renderSubtitles();
-        });
     </script>
 </body>
 </html>
