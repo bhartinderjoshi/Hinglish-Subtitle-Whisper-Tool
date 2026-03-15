@@ -34,7 +34,11 @@ Want to convert your Hindi-English videos to subtitle files? It's as easy as dou
 
 4. **Use the app:**
    - Drag and drop your video file
-   - Choose quality: **Prime** (best) or **Swift** (faster)
+   - Choose quality: **Apex** (ultimate), **Prime** (best), or **Swift** (faster)
+   - Customize subtitle formatting (optional):
+     - Max words per subtitle (2-10, default: 4)
+     - Max characters per line (20-60, default: 42)
+     - Max pause gap between words (0.1-2.0s, default: 0.5s)
    - Click "Generate SRT File"
    - Download your subtitle file automatically
 
@@ -166,16 +170,24 @@ The above reasons were some of the main motivations behind training the Whisper-
 
 ## Relased Models:
 
-We have open sourced two models [Oriserve/Whisper-Hindi2Hinglish-Prime](https://huggingface.co/Oriserve/Whisper-Hindi2Hinglish-Prime) and [Oriserve/Whisper-Hindi2Hinglish-Swift](https://huggingface.co/Oriserve/Whisper-Hindi2Hinglish-Swift). Under the `Whisper-Hindi2Hinglish` family of models.
-- Prime Model Highlights
+We have open sourced three models under the `Whisper-Hindi2Hinglish` family:
+
+- **[Oriserve/Whisper-Hindi2Hinglish-Apex](https://huggingface.co/Oriserve/Whisper-Hindi2Hinglish-Apex)** ⭐ (Default)
+    - Ultimate accuracy for Hindi-English transcription
+    - Best-in-class performance for Hinglish content
+    - Recommended for production use
+    
+- **[Oriserve/Whisper-Hindi2Hinglish-Prime](https://huggingface.co/Oriserve/Whisper-Hindi2Hinglish-Prime)** 🏆
     - Superior noise resistance for cleaner transcriptions
     - Advanced hallucination mitigation
     - Enhanced accuracy across benchmark datasets
     - Lightning fast inference time and low latency streaming
-- Swift Model Highlights
+    
+- **[Oriserve/Whisper-Hindi2Hinglish-Swift](https://huggingface.co/Oriserve/Whisper-Hindi2Hinglish-Swift)** ⚡
     - Optimised for faster processing
     - Robust hallucination prevention
     - Exceptional performance metrics
+    - Good balance of speed and quality
 
 ## Performance Overview
 #### Qualitative Performance Overview
@@ -226,67 +238,151 @@ We have open sourced two models [Oriserve/Whisper-Hindi2Hinglish-Prime](https://
     - To use the `client_mic.py` to stream audio from your microphone, you will need to install `pyaudio` you can follow the instructions [Pyaudio Setup](https://people.csail.mit.edu/hubert/pyaudio/).
 
 ## Features of the App
-The server and client are designed to be used in a streaming manner. The client can stream audio from a file or from your microphone. The server will process the audio and send the transcription to the client. The client will then send the transcription back to the server.
 
-The server and client are also designed to be used with different models. The default model is `Oriserve/Whisper-Hindi2Hinglish-Swift` but you can also use `Oriserve/Whisper-Hindi2Hinglish-Prime` for a better performance. Allowing for real-time transcription of audios.
+The server and client are designed to be used in a streaming manner. The client can stream audio from a file or from your microphone. The server will process the audio and send the transcription to the client.
+
+**Default Model**: The system now uses `Oriserve/Whisper-Hindi2Hinglish-Apex` by default for the highest accuracy. You can also choose:
+- `Oriserve/Whisper-Hindi2Hinglish-Prime` for excellent quality with superior noise handling
+- `Oriserve/Whisper-Hindi2Hinglish-Swift` for faster processing
+
+**New Subtitle Customization**: You can now control:
+- Maximum words per subtitle (default: 4)
+- Maximum characters per line (default: 42 - Netflix standard)
+- Maximum pause gap for subtitle breaks (default: 0.5 seconds)
 
 The server and client use websockets to communicate with each other.
 
-## 🎬 NEW: Video to SRT Converter
+## 🎬 Video to SRT Converter
 
-Convert Hindi-English mixed videos to Roman English SRT subtitle files!
+Convert Hindi-English mixed videos to Roman English SRT subtitle files with customizable formatting!
 
 ### Quick Start
 ```bash
-# Web Interface (easiest)
+# Web Interface (easiest) - with customization options
 python web_server.py
 # Then open: http://localhost:5000
 
-# Command Line
+# Command Line - basic usage
 python video_to_srt.py your_video.mp4
+
+# Command Line - with custom subtitle formatting
+python video_to_srt.py your_video.mp4 \
+  --max-words 5 \
+  --max-chars 45 \
+  --max-pause 0.6
 ```
 
-**See [docs/QUICK_START.md](docs/QUICK_START.md) for complete guide**
+**See [CUSTOMIZATION_GUIDE.md](CUSTOMIZATION_GUIDE.md) for detailed customization options**
 
-Features:
+**See [docs/QUICK_START.md](docs/QUICK_START.md) for complete setup guide**
+
+### Features:
 - 🎥 Upload video, get SRT file
-- 🌐 Beautiful web interface
-- ⚡ Fast processing with GPU
+- 🌐 Beautiful web interface with real-time status
+- 🤖 Three AI models to choose from (Apex, Prime, Swift)
+- ⚙️ Customizable subtitle formatting:
+  - Control words per subtitle
+  - Set character limits per line
+  - Adjust pause gap detection
+- ⚡ Fast processing with GPU (automatic CPU fallback)
 - 🎯 Accurate Hindi-English transcription
-- 📝 Properly timed subtitles
+- 📝 Properly timed subtitles with word-level timestamps
+- 📊 See which model is currently loaded
 
 ---
 
 ## Usage
 
-### Server
-To start the server, run the following command:
+### Web Server (Recommended)
+Start the web server with the Apex model (default):
+```bash
+python web_server.py
+```
+Then open http://localhost:5000 in your browser.
+
+**Features:**
+- Drag and drop video upload
+- Choose between Apex, Prime, or Swift models
+- Customize subtitle formatting in real-time
+- See which model is currently loaded
+- Automatic download of generated SRT files
+
+### WebSocket Server (For Streaming)
+To start the streaming server, run:
 ```bash
 python websocket_server.py
 ```
 - The server will start listening on port 8000 by default. You can change the port by passing the `--port` argument.
-- You can also change the model by passing the `--model-id` argument. The default model is `Oriserve/Whisper-Hindi2Hinglish-Swift` you can also use `Oriserve/Whisper-Hindi2Hinglish-Prime` for a better performance.
-- To change the device on which the model is running, you can pass the `--device` argument. The default device is `cuda`.
-- To change the data type on which the model is running, you can pass the `--dtype` argument. The default data type is `float16`.
+- The default model is now `Oriserve/Whisper-Hindi2Hinglish-Apex`. You can change it with `--model-id`:
+  ```bash
+  # Use Apex (default - best quality)
+  python websocket_server.py --model-id Oriserve/Whisper-Hindi2Hinglish-Apex
+  
+  # Use Prime (excellent quality)
+  python websocket_server.py --model-id Oriserve/Whisper-Hindi2Hinglish-Prime
+  
+  # Use Swift (faster)
+  python websocket_server.py --model-id Oriserve/Whisper-Hindi2Hinglish-Swift
+  ```
+- To change the device: `--device cuda` or `--device cpu` (default: cuda with automatic CPU fallback)
+- To change the data type: `--dtype float16` or `--dtype float32` (default: float16)
 
 ### Client
 
-#### File
+#### File Streaming
 To stream audio from a file, run the following command:
 ```bash
 python client_file.py --uri <uri> --wav-path <wav-path> --chunk-duration <chunk-duration>
 ```
 
-#### Microphone
+#### Microphone Streaming
 To stream audio from your microphone, run the following command:
 ```bash
 python client_mic.py --uri <uri> --device-index <device-index> --chunk-duration <chunk-duration>
 ```
 
-- `uri`: The URI at which the server is running.
-- `device-index`: The index of the microphone device to use (default: 0).
-- `wav-path`: The path to the audio file.
-- `chunk-duration`: The duration of each chunk in milliseconds (default: 10) to send to the server.
+**Parameters:**
+- `uri`: The URI at which the server is running (e.g., ws://localhost:8000)
+- `device-index`: The index of the microphone device to use (default: 0)
+- `wav-path`: The path to the audio file
+- `chunk-duration`: The duration of each chunk in milliseconds (default: 10)
+
+### Command Line Video to SRT
+
+Convert videos to SRT files directly from command line:
+
+```bash
+# Basic usage (uses Apex model by default)
+python video_to_srt.py your_video.mp4
+
+# Specify output file
+python video_to_srt.py your_video.mp4 --output custom_name.srt
+
+# Choose different model
+python video_to_srt.py your_video.mp4 --model-id Oriserve/Whisper-Hindi2Hinglish-Prime
+
+# Customize subtitle formatting
+python video_to_srt.py your_video.mp4 \
+  --max-words 6 \
+  --max-chars 50 \
+  --max-pause 0.8
+
+# All options combined
+python video_to_srt.py your_video.mp4 \
+  --output subtitles.srt \
+  --model-id Oriserve/Whisper-Hindi2Hinglish-Apex \
+  --max-words 5 \
+  --max-chars 45 \
+  --max-pause 0.6 \
+  --device cuda
+```
+
+**Subtitle Formatting Options:**
+- `--max-words`: Maximum words per subtitle (2-10, default: 4)
+- `--max-chars`: Maximum characters per line (20-60, default: 42)
+- `--max-pause`: Maximum pause gap in seconds (0.1-2.0, default: 0.5)
+
+See [CUSTOMIZATION_GUIDE.md](CUSTOMIZATION_GUIDE.md) for more examples and tips.
 
 ***Note***:
 - As WebRTC VAD is used for speech detection, the chunk-duration should be either 10, 20, or 30 milliseconds.

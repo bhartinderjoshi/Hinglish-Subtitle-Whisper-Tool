@@ -229,7 +229,8 @@ def group_words_for_subtitles(
     return subtitles
 
 
-def generate_srt(transcription_result: dict, output_srt_path: str, video_duration: float = 0.0):
+def generate_srt(transcription_result: dict, output_srt_path: str, video_duration: float = 0.0, 
+                 max_words: int = 4, max_chars: int = 42, max_pause: float = 0.5):
     """
     Generate SRT file from whisper-timestamped transcription with word-level timestamps.
 
@@ -237,6 +238,9 @@ def generate_srt(transcription_result: dict, output_srt_path: str, video_duratio
         transcription_result: Dict with 'segments' containing 'words' with timestamps
         output_srt_path: Path to save SRT file
         video_duration: Optional video duration in seconds for comparison
+        max_words: Maximum words per subtitle (default: 4)
+        max_chars: Maximum characters per subtitle line (default: 42)
+        max_pause: Maximum pause gap in seconds (default: 0.5)
     """
     # Validate input
     if not transcription_result:
@@ -308,9 +312,9 @@ def generate_srt(transcription_result: dict, output_srt_path: str, video_duratio
     # Group words
     subtitles = group_words_for_subtitles(
         segments,
-        max_words=4,
-        max_chars=42,
-        max_pause_gap=0.5
+        max_words=max_words,
+        max_chars=max_chars,
+        max_pause_gap=max_pause
     )
 
     # Validate output
@@ -366,9 +370,12 @@ def generate_srt(transcription_result: dict, output_srt_path: str, video_duratio
 def video_to_srt(
     video_path: str,
     output_srt_path: str = None,
-    model_id: str = "Oriserve/Whisper-Hindi2Hinglish-Swift",
+    model_id: str = "Oriserve/Whisper-Hindi2Hinglish-Apex",
     device: str = "cuda",
-    dtype: torch.dtype = torch.float16
+    dtype: torch.dtype = torch.float16,
+    max_words: int = 4,
+    max_chars: int = 42,
+    max_pause: float = 0.5
 ):
     """
     Convert video to SRT subtitle file using whisper-timestamped for word-level alignment.
@@ -379,6 +386,9 @@ def video_to_srt(
         model_id: Whisper model size (tiny, base, small, medium, large, or HF model ID)
         device: Device to run model on (auto-detects if CUDA unavailable)
         dtype: Data type for model (not used by whisper-timestamped, kept for compatibility)
+        max_words: Maximum words per subtitle (default: 4)
+        max_chars: Maximum characters per subtitle line (default: 42)
+        max_pause: Maximum pause gap in seconds to keep words together (default: 0.5)
 
     Returns:
         str: Path to generated SRT file
@@ -483,7 +493,8 @@ def video_to_srt(
 
         # Step 5: Generate SRT file
         logger.info("Generating SRT file...")
-        generate_srt(result, output_srt_path, video_duration)
+        logger.info(f"Using subtitle settings: max_words={max_words}, max_chars={max_chars}, max_pause={max_pause}s")
+        generate_srt(result, output_srt_path, video_duration, max_words, max_chars, max_pause)
 
         logger.info(f"✓ SRT file created successfully: {output_srt_path}")
         return output_srt_path
@@ -510,8 +521,8 @@ def main():
     )
     parser.add_argument(
         "--model-id",
-        default="Oriserve/Whisper-Hindi2Hinglish-Swift",
-        help="Whisper model ID (default: Oriserve/Whisper-Hindi2Hinglish-Swift) or size: tiny, base, small, medium, large"
+        default="Oriserve/Whisper-Hindi2Hinglish-Apex",
+        help="Whisper model ID (default: Oriserve/Whisper-Hindi2Hinglish-Apex) or size: tiny, base, small, medium, large"
     )
     parser.add_argument(
         "--device",
@@ -522,6 +533,25 @@ def main():
         "--dtype",
         default="float16",
         help="Data type for model (default: float16, kept for compatibility)"
+    )
+
+    parser.add_argument(
+        "--max-words",
+        type=int,
+        default=4,
+        help="Maximum words per subtitle (default: 4)"
+    )
+    parser.add_argument(
+        "--max-chars",
+        type=int,
+        default=42,
+        help="Maximum characters per subtitle line (default: 42)"
+    )
+    parser.add_argument(
+        "--max-pause",
+        type=float,
+        default=0.5,
+        help="Maximum pause gap in seconds to keep words together (default: 0.5)"
     )
 
     args = parser.parse_args()
@@ -535,7 +565,10 @@ def main():
         args.output,
         args.model_id,
         args.device,
-        dtype
+        dtype,
+        args.max_words,
+        args.max_chars,
+        args.max_pause
     )
 
 if __name__ == "__main__":

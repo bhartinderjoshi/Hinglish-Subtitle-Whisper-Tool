@@ -33,7 +33,7 @@ app.config['MAX_CONTENT_LENGTH'] = MAX_FILE_SIZE
 
 # Global model config
 MODEL_CONFIG = {
-    'model_id': 'Oriserve/Whisper-Hindi2Hinglish-Swift',
+    'model_id': 'Oriserve/Whisper-Hindi2Hinglish-Apex',
     'device': 'cuda',
     'dtype': torch.float16
 }
@@ -48,6 +48,12 @@ def allowed_file(filename):
 def index():
     """Enhanced landing page with system status"""
     return render_template('launcher.html')
+
+
+@app.route('/editor')
+def editor():
+    """Advanced subtitle editor page"""
+    return render_template('editor.html')
 
 
 @app.route('/upload-page')
@@ -100,6 +106,7 @@ def system_status():
         'ffmpeg': check_ffmpeg_installed(),
         'dependencies': check_dependencies(),
         'device': get_device_info(),
+        'model': MODEL_CONFIG['model_id'],  # Add current model
         'server': True
     }
     return jsonify(status)
@@ -166,11 +173,28 @@ def upload_video():
         }), 400
     
     # Get model preference
-    model_choice = request.form.get('model', 'swift').lower()
+    model_choice = request.form.get('model', 'apex').lower()
     if model_choice == 'prime':
         model_id = 'Oriserve/Whisper-Hindi2Hinglish-Prime'
-    else:
+    elif model_choice == 'swift':
         model_id = 'Oriserve/Whisper-Hindi2Hinglish-Swift'
+    else:
+        model_id = 'Oriserve/Whisper-Hindi2Hinglish-Apex'
+    
+    # Get subtitle formatting options
+    try:
+        max_words = int(request.form.get('maxWords', 4))
+        max_chars = int(request.form.get('maxChars', 42))
+        max_pause = float(request.form.get('maxPause', 0.5))
+        
+        # Validate ranges
+        max_words = max(1, min(10, max_words))
+        max_chars = max(20, min(60, max_chars))
+        max_pause = max(0.1, min(2.0, max_pause))
+    except (ValueError, TypeError):
+        max_words = 4
+        max_chars = 42
+        max_pause = 0.5
     
     # Save uploaded file
     filename = secure_filename(file.filename)
@@ -182,6 +206,8 @@ def upload_video():
         logger.info(f"Original filename: {file.filename}")
         logger.info(f"Secured filename: {filename}")
         logger.info(f"Processing video: {filename}")
+        logger.info(f"Model: {model_id}")
+        logger.info(f"Subtitle settings: max_words={max_words}, max_chars={max_chars}, max_pause={max_pause}")
         srt_filename = Path(filename).stem + '.srt'
         srt_path = os.path.join(app.config['UPLOAD_FOLDER'], srt_filename)
         logger.info(f"SRT filename: {srt_filename}")
@@ -192,16 +218,28 @@ def upload_video():
             srt_path,
             model_id,
             MODEL_CONFIG['device'],
-            MODEL_CONFIG['dtype']
+            MODEL_CONFIG['dtype'],
+            max_words=max_words,
+            max_chars=max_chars,
+            max_pause=max_pause
         )
         
-        # Send SRT file
-        return send_file(
-            srt_path,
-            as_attachment=True,
-            download_name=srt_filename,
-            mimetype='text/plain'
-        )
+        # Check if request wants text response (for editor) or file download
+        return_type = request.form.get('returnType', 'file')
+        
+        if return_type == 'text':
+            # Return SRT content as text for editor
+            with open(srt_path, 'r', encoding='utf-8') as f:
+                srt_content = f.read()
+            return srt_content, 200, {'Content-Type': 'text/plain; charset=utf-8'}
+        else:
+            # Send SRT file for download
+            return send_file(
+                srt_path,
+                as_attachment=True,
+                download_name=srt_filename,
+                mimetype='text/plain'
+            )
         
     except Exception as e:
         logger.error(f"Error processing video: {e}")
@@ -222,7 +260,7 @@ if __name__ == '__main__':
     parser.add_argument('--port', type=int, default=5000, help='Port to bind')
     parser.add_argument(
         '--model-id',
-        default='Oriserve/Whisper-Hindi2Hinglish-Swift',
+        default='Oriserve/Whisper-Hindi2Hinglish-Apex',
         help='Default model ID'
     )
     parser.add_argument('--device', default='cuda', help='Device to run model on')

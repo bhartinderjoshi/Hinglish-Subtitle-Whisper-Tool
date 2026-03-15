@@ -144,7 +144,7 @@ if __name__ == "__main__":
     parser.add_argument("--host", default="0.0.0.0", help="Host to bind")
     parser.add_argument("--port", type=int, default=8000, help="Port to bind")
     parser.add_argument(
-        "--model-id", default="Oriserve/Whisper-Hindi2Hinglish-Swift", help="Model ID"
+        "--model-id", default="Oriserve/Whisper-Hindi2Hinglish-Apex", help="Model ID"
     )
     parser.add_argument("--device", default="cuda", help="Device to run the model on")
     parser.add_argument(
