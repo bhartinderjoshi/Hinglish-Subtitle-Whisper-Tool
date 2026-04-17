@@ -1,0 +1,126 @@
+===============================================
+GPU ACCELERATION SETUP GUIDE
+===============================================
+
+YOUR SYSTEM:
+- GPU: NVIDIA GeForce RTX 3060 Ti (8GB)
+- CUDA Version: 13.0
+- Current PyTorch: CPU-only (2.5.1+cpu)
+
+STATUS: GPU NOT BEING USED (CPU-only PyTorch installed)
+
+===============================================
+HOW TO ENABLE GPU ACCELERATION
+===============================================
+
+OPTION 1: Automatic Installation (Recommended)
+----------------------------------------------
+1. Double-click: install_cuda_pytorch.bat
+2. Wait for installation (5-10 minutes)
+3. Restart the server
+
+OPTION 2: Manual Installation
+----------------------------------------------
+1. Open Command Prompt or PowerShell
+2. Run these commands:
+
+   pip uninstall -y torch torchvision torchaudio
+   pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
+
+3. Restart the server
+
+===============================================
+VERIFY GPU IS WORKING
+===============================================
+
+After installation, run:
+   python check_gpu.py
+
+You should see:
+   ✅ CUDA Available: True
+   🚀 GPU Name: NVIDIA GeForce RTX 3060 Ti
+
+===============================================
+PERFORMANCE COMPARISON
+===============================================
+
+CPU Mode (Current):
+- 10 min video: ~5-10 minutes processing
+- 30 min video: ~15-30 minutes processing
+
+GPU Mode (After Setup):
+- 10 min video: ~1-2 minutes processing
+- 30 min video: ~3-6 minutes processing
+
+Speed improvement: 5-10x faster! 🚀
+
+===============================================
+USING GPU WITH THE SERVER
+===============================================
+
+After installing CUDA PyTorch:
+
+1. Start server normally:
+   python web_server.py
+
+   The server will AUTOMATICALLY detect and use GPU!
+
+2. Or explicitly specify:
+   python web_server.py --device cuda
+
+3. Check server logs for:
+   "🚀 GPU Acceleration: NVIDIA GeForce RTX 3060 Ti"
+
+===============================================
+TROUBLESHOOTING
+===============================================
+
+Problem: "CUDA Available: False" after installation
+Solution:
+1. Restart your computer
+2. Check NVIDIA drivers are up to date
+3. Run: nvidia-smi (should show GPU info)
+4. Reinstall PyTorch with CUDA
+
+Problem: "Out of memory" error
+Solution:
+1. Close other GPU-using applications
+2. Use Swift model instead of Apex/Prime
+3. Process shorter videos
+4. Restart computer to free GPU memory
+
+Problem: Server still using CPU
+Solution:
+1. Stop the server (Ctrl+C)
+2. Run: python check_gpu.py
+3. Verify CUDA is available
+4. Restart server
+
+===============================================
+CURRENT VS AFTER SETUP
+===============================================
+
+BEFORE (CPU):
+Starting API server on http://0.0.0.0:5000
+Using model: Oriserve/Whisper-Hindi2Hinglish-Apex
+Device: cpu, dtype: torch.float32
+💻 Running on CPU (slower)
+
+AFTER (GPU):
+Starting API server on http://0.0.0.0:5000
+Using model: Oriserve/Whisper-Hindi2Hinglish-Apex
+Device: cuda, dtype: torch.float16
+🚀 GPU Acceleration: NVIDIA GeForce RTX 3060 Ti (8.0 GB)
+
+===============================================
+QUICK START
+===============================================
+
+1. Run: install_cuda_pytorch.bat
+2. Wait for installation
+3. Run: python check_gpu.py
+4. If GPU shows as available, start server:
+   python web_server.py
+5. Enjoy 5-10x faster processing! 🎉
+
+===============================================

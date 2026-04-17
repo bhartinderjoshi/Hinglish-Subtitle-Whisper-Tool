@@ -109,16 +109,19 @@ def group_words_for_subtitles(
     segments: list[dict],
     max_words: int = 4,
     max_chars: int = 42,
-    max_pause_gap: float = 0.5
+    max_pause_gap: float = 0.5,
+    min_speech_confidence: float = 0.3
 ) -> list[tuple[str, float, float]]:
     """
     Group words from whisper-timestamped output into subtitle-friendly chunks.
+    Filters out words with low confidence (likely silence/noise).
 
     Args:
         segments: List of segments from whisper-timestamped with 'words' key
         max_words: Maximum words per subtitle (default 4)
         max_chars: Maximum characters per subtitle (default 42 - Netflix standard)
         max_pause_gap: Maximum gap between words to keep in same subtitle (default 0.5s)
+        min_speech_confidence: Minimum confidence to consider as speech (default 0.3)
 
     Returns:
         List of tuples: (text, start_time, end_time)
@@ -128,8 +131,23 @@ def group_words_for_subtitles(
     # Extract all words from all segments
     for segment in segments:
         if 'words' in segment and segment['words']:
-            # Best case: segment has word-level timestamps
-            all_words.extend(segment['words'])
+            # Filter words by confidence if available
+            for word_data in segment['words']:
+                # Check confidence score if available
+                confidence = word_data.get('confidence', 1.0)
+                
+                # Skip words with very low confidence (likely silence/noise)
+                if confidence < min_speech_confidence:
+                    word_text = word_data.get('text', '')
+                    logger.debug(f"Skipping low-confidence word: '{word_text}' (confidence: {confidence:.2f})")
+                    continue
+                
+                # Skip empty or whitespace-only words
+                word_text = word_data.get('text', '').strip()
+                if not word_text or word_text.isspace():
+                    continue
+                    
+                all_words.append(word_data)
         else:
             # Fallback: Create synthetic word entry from segment-level data
             logger.warning(f"Segment missing 'words' key, using segment-level fallback")
@@ -145,7 +163,7 @@ def group_words_for_subtitles(
                 logger.info(f"Created fallback word: '{segment_text[:30]}...' ({synthetic_word['start']:.2f}s - {synthetic_word['end']:.2f}s)")
 
     if not all_words:
-        logger.error("No words found in any segment - transcription may have failed")
+        logger.error("No words found in any segment - transcription may have failed or all audio was silence")
         return []
 
     subtitles = []
@@ -225,7 +243,7 @@ def group_words_for_subtitles(
         group_end = current_group[-1]['end']
         subtitles.append((group_text, group_start, group_end))
 
-    logger.info(f"Grouped {len(all_words)} words into {len(subtitles)} subtitles")
+    logger.info(f"Grouped {len(all_words)} words into {len(subtitles)} subtitles (filtered out low-confidence words)")
     return subtitles
 
 
@@ -375,7 +393,8 @@ def video_to_srt(
     dtype: torch.dtype = torch.float16,
     max_words: int = 4,
     max_chars: int = 42,
-    max_pause: float = 0.5
+    max_pause: float = 0.5,
+    vad_threshold: float = 0.6
 ):
     """
     Convert video to SRT subtitle file using whisper-timestamped for word-level alignment.
@@ -389,6 +408,7 @@ def video_to_srt(
         max_words: Maximum words per subtitle (default: 4)
         max_chars: Maximum characters per subtitle line (default: 42)
         max_pause: Maximum pause gap in seconds to keep words together (default: 0.5)
+        vad_threshold: No-speech threshold for silence filtering (default: 0.6, range: 0.1-0.9, higher = stricter)
 
     Returns:
         str: Path to generated SRT file
@@ -442,15 +462,20 @@ def video_to_srt(
 
         # Step 4: Transcribe with forced alignment for word-level timestamps
         logger.info("Transcribing audio with forced alignment for word-level timestamps...")
-        logger.info("VAD filtering: ENABLED (silero) - reduces hallucinations")
+        logger.info(f"VAD filtering: ENABLED (silero) - filters silence")
+        logger.info(f"No-speech threshold: {vad_threshold} (higher = stricter silence filtering)")
         logger.info("Conditioning on previous text: DISABLED - prevents stopping at pauses")
+        logger.info("Empty words removal: ENABLED - removes words with no speech")
+        
         result = whisper.transcribe(
             model,
             audio,
             language="hi",  # Hindi/Hinglish
-            vad=True,  # Enable VAD to reduce hallucinations
+            vad=True,  # Enable VAD to filter silence and reduce hallucinations
+            no_speech_threshold=vad_threshold,  # User-configurable threshold (0.1-0.9, higher = stricter)
             condition_on_previous_text=False,  # CRITICAL: Prevents stopping at gaps/pauses
-            remove_empty_words=True,  # Clean up output
+            remove_empty_words=True,  # Clean up words with no speech
+            detect_disfluencies=False,  # Don't transcribe "um", "uh" etc
             plot_word_alignment=False  # Set True for debugging
         )
 
@@ -553,6 +578,12 @@ def main():
         default=0.5,
         help="Maximum pause gap in seconds to keep words together (default: 0.5)"
     )
+    parser.add_argument(
+        "--vad-threshold",
+        type=float,
+        default=0.6,
+        help="No-speech threshold for silence filtering - higher = stricter (default: 0.6, range: 0.1-0.9)"
+    )
 
     args = parser.parse_args()
 
@@ -568,7 +599,8 @@ def main():
         dtype,
         args.max_words,
         args.max_chars,
-        args.max_pause
+        args.max_pause,
+        args.vad_threshold
     )
 
 if __name__ == "__main__":

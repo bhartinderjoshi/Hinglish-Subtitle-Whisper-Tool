@@ -46,7 +46,13 @@ def allowed_file(filename):
 
 @app.route('/')
 def index():
-    """Enhanced landing page with system status"""
+    """Main page - redirect to editor"""
+    return render_template('editor.html')
+
+
+@app.route('/launcher')
+def launcher():
+    """Landing page with system status"""
     return render_template('launcher.html')
 
 
@@ -186,15 +192,18 @@ def upload_video():
         max_words = int(request.form.get('maxWords', 4))
         max_chars = int(request.form.get('maxChars', 42))
         max_pause = float(request.form.get('maxPause', 0.5))
+        vad_threshold = float(request.form.get('vadThreshold', 0.5))
         
         # Validate ranges
         max_words = max(1, min(10, max_words))
         max_chars = max(20, min(60, max_chars))
         max_pause = max(0.1, min(2.0, max_pause))
+        vad_threshold = max(0.1, min(0.9, vad_threshold))
     except (ValueError, TypeError):
         max_words = 4
         max_chars = 42
         max_pause = 0.5
+        vad_threshold = 0.6
     
     # Save uploaded file
     filename = secure_filename(file.filename)
@@ -208,6 +217,7 @@ def upload_video():
         logger.info(f"Processing video: {filename}")
         logger.info(f"Model: {model_id}")
         logger.info(f"Subtitle settings: max_words={max_words}, max_chars={max_chars}, max_pause={max_pause}")
+        logger.info(f"VAD settings: threshold={vad_threshold} (silence filtering)")
         srt_filename = Path(filename).stem + '.srt'
         srt_path = os.path.join(app.config['UPLOAD_FOLDER'], srt_filename)
         logger.info(f"SRT filename: {srt_filename}")
@@ -221,7 +231,8 @@ def upload_video():
             MODEL_CONFIG['dtype'],
             max_words=max_words,
             max_chars=max_chars,
-            max_pause=max_pause
+            max_pause=max_pause,
+            vad_threshold=vad_threshold
         )
         
         # Check if request wants text response (for editor) or file download
@@ -279,5 +290,14 @@ if __name__ == '__main__':
     logger.info(f"Starting API server on http://{args.host}:{args.port}")
     logger.info(f"Using model: {MODEL_CONFIG['model_id']}")
     logger.info(f"Device: {available_device}, dtype: {MODEL_CONFIG['dtype']}")
+    
+    # Show GPU info if available
+    if available_device == 'cuda':
+        import torch
+        gpu_name = torch.cuda.get_device_name(0)
+        total_memory = torch.cuda.get_device_properties(0).total_memory / (1024**3)
+        logger.info(f"🚀 GPU Acceleration: {gpu_name} ({total_memory:.1f} GB)")
+    else:
+        logger.info("💻 Running on CPU (slower). To use GPU, run: install_cuda_pytorch.bat")
     
     app.run(host=args.host, port=args.port, debug=False)
