@@ -25,7 +25,12 @@ log.setLevel(logging.ERROR)
 
 # Configuration
 UPLOAD_FOLDER = str(Path.home() / "Downloads")
-ALLOWED_EXTENSIONS = {'mp4', 'avi', 'mov', 'mkv', 'webm', 'flv', 'wmv', 'm4v'}
+ALLOWED_EXTENSIONS = {
+    # Video formats
+    'mp4', 'avi', 'mov', 'mkv', 'webm', 'flv', 'wmv', 'm4v',
+    # Audio formats
+    'wav', 'mp3', 'ogg', 'flac', 'm4a', 'aac', 'wv', 'wma', 'opus'
+}
 MAX_FILE_SIZE = 500 * 1024 * 1024  # 500MB
 
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
