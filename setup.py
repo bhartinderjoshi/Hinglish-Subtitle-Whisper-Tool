@@ -51,7 +51,7 @@ setup(
         "whisper-timestamped>=1.15.9",
         "webrtcvad==2.0.10",
         "librosa>=0.10.2",
-        "numpy>=2.3.5",
+        "numpy>=1.24.0",
         "websockets>=14.1",
         "flask>=3.0.0",
         "werkzeug>=3.0.1",
