@@ -17,21 +17,32 @@ from logger import logger
 from utils import torch_dtype_from_str, get_device
 from video_to_srt import video_to_srt
 
+# Ensure ffmpeg in PATH
+for extra_path in [os.path.expanduser('~/bin'), '/opt/homebrew/bin', '/usr/local/bin']:
+    if os.path.exists(extra_path) and extra_path not in os.environ.get('PATH', ''):
+        os.environ['PATH'] = f"{extra_path}:{os.environ.get('PATH', '')}"
+
+import shutil
+import json
+import re
+
 app = Flask(__name__, template_folder='templates')
 
 # Reduce logging verbosity for end users - only show important messages
 log = logging.getLogger('werkzeug')
 log.setLevel(logging.ERROR)
 
-# Configuration
-UPLOAD_FOLDER = str(Path.home() / "Downloads")
+# Configuration - Use isolated temporary directory so local user files are NEVER deleted or overwritten
+UPLOAD_FOLDER = os.path.join(tempfile.gettempdir(), "hinglish_whisper_uploads")
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
 ALLOWED_EXTENSIONS = {
     # Video formats
     'mp4', 'avi', 'mov', 'mkv', 'webm', 'flv', 'wmv', 'm4v',
     # Audio formats
     'wav', 'mp3', 'ogg', 'flac', 'm4a', 'aac', 'wv', 'wma', 'opus'
 }
-MAX_FILE_SIZE = 500 * 1024 * 1024  # 500MB
+MAX_FILE_SIZE = 1000 * 1024 * 1024  # 1000MB (1GB)
 
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['MAX_CONTENT_LENGTH'] = MAX_FILE_SIZE
@@ -44,6 +55,111 @@ MODEL_CONFIG = {
 }
 
 
+def get_ffmpeg_binary():
+    """Find the path to ffmpeg binary"""
+    ffmpeg_path = shutil.which('ffmpeg')
+    if ffmpeg_path:
+        return ffmpeg_path
+    for p in [os.path.expanduser('~/bin/ffmpeg'), '/usr/local/bin/ffmpeg', '/opt/homebrew/bin/ffmpeg']:
+        if os.path.exists(p) and os.access(p, os.X_OK):
+            return p
+    return 'ffmpeg'
+
+
+def hex_to_ass_color(hex_color, alpha=1.0):
+    """
+    Convert CSS hex color (#RRGGBB) to ASS color format (&HAABBGGRR).
+    In ASS: AA is alpha (00=opaque, FF=transparent), then BB, GG, RR.
+    """
+    if not hex_color:
+        return "&H00FFFFFF"
+    hex_color = hex_color.lstrip('#')
+    if len(hex_color) == 3:
+        hex_color = ''.join([c * 2 for c in hex_color])
+    if len(hex_color) != 6:
+        return "&H00FFFFFF"
+    r = hex_color[0:2]
+    g = hex_color[2:4]
+    b = hex_color[4:6]
+    
+    # ASS alpha: 0 = fully opaque (00), 255 = fully transparent (FF)
+    try:
+        alpha_val = float(alpha)
+    except (ValueError, TypeError):
+        alpha_val = 1.0
+    alpha_val = max(0.0, min(1.0, alpha_val))
+    ass_alpha = int(round((1.0 - alpha_val) * 255))
+    
+    return f"&H{ass_alpha:02X}{b.upper()}{g.upper()}{r.upper()}"
+
+
+def srt_time_to_ass_time(time_str):
+    """Convert SRT time (HH:MM:SS,mmm) to ASS time (H:MM:SS.cs)"""
+    if not time_str:
+        return "0:00:00.00"
+    time_str = time_str.strip().replace(',', '.')
+    parts = time_str.split(':')
+    if len(parts) == 3:
+        try:
+            h = int(parts[0])
+            m = int(parts[1])
+            s = float(parts[2])
+            return f"{h}:{m:02d}:{s:05.2f}"
+        except ValueError:
+            return "0:00:00.00"
+    return "0:00:00.00"
+
+
+def generate_ass_script(subtitles, styles, play_res_x=1920, play_res_y=1080):
+    """
+    Generate Advanced SubStation Alpha (.ass) subtitle file content from subtitles and style dict.
+    """
+    font_name = styles.get('fontName', 'Montserrat')
+    font_size = int(styles.get('fontSize', 36))
+    primary_color = hex_to_ass_color(styles.get('primaryColor', '#FFFFFF'), styles.get('primaryAlpha', 1.0))
+    secondary_color = "&H000000FF"
+    outline_color = hex_to_ass_color(styles.get('outlineColor', '#000000'), 1.0)
+    back_color = hex_to_ass_color(styles.get('backColor', '#000000'), styles.get('backAlpha', 0.8))
+    
+    bold = -1 if styles.get('bold', True) else 0
+    italic = -1 if styles.get('italic', False) else 0
+    border_style = int(styles.get('borderStyle', 1))  # 1 = outline+shadow, 3 = background box
+    outline = float(styles.get('outlineWidth', 2.5))
+    shadow = float(styles.get('shadow', 1.5))
+    alignment = int(styles.get('alignment', 2))  # 2 = bottom center, 8 = top center, 5 = middle center
+    margin_l = int(styles.get('marginL', 30))
+    margin_r = int(styles.get('marginR', 30))
+    margin_v = int(styles.get('marginV', 40))
+    is_uppercase = bool(styles.get('uppercase', False))
+    
+    ass_lines = [
+        "[Script Info]",
+        "ScriptType: v4.00+",
+        f"PlayResX: {play_res_x}",
+        f"PlayResY: {play_res_y}",
+        "ScaledBorderAndShadow: yes",
+        "",
+        "[V4+ Styles]",
+        "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding",
+        f"Style: Default,{font_name},{font_size},{primary_color},{secondary_color},{outline_color},{back_color},{bold},{italic},0,0,100,100,0,0,{border_style},{outline},{shadow},{alignment},{margin_l},{margin_r},{margin_v},1",
+        "",
+        "[Events]",
+        "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text"
+    ]
+    
+    for sub in subtitles:
+        start_ass = srt_time_to_ass_time(sub.get('startTime', '00:00:00,000'))
+        end_ass = srt_time_to_ass_time(sub.get('endTime', '00:00:00,000'))
+        text = sub.get('text', '').strip()
+        if is_uppercase:
+            text = text.upper()
+        # Escape newlines for ASS
+        text = text.replace('\r\n', '\\N').replace('\n', '\\N')
+        ass_lines.append(f"Dialogue: 0,{start_ass},{end_ass},Default,,0,0,0,,{text}")
+        
+    return "\n".join(ass_lines)
+
+
 def allowed_file(filename):
     """Check if file extension is allowed"""
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
@@ -53,6 +169,12 @@ def allowed_file(filename):
 def index():
     """Main page - redirect to editor"""
     return render_template('editor.html')
+
+
+@app.route('/favicon.ico')
+def favicon():
+    """Favicon endpoint to prevent 404 in browser console"""
+    return ('', 204)
 
 
 @app.route('/launcher')
@@ -125,15 +247,16 @@ def system_status():
 
 def check_ffmpeg_installed():
     """Check if FFmpeg is installed"""
+    ffmpeg_bin = get_ffmpeg_binary()
     try:
         result = subprocess.run(
-            ['ffmpeg', '-version'],
+            [ffmpeg_bin, '-version'],
             capture_output=True,
             check=True,
             timeout=5
         )
         return True
-    except (subprocess.CalledProcessError, FileNotFoundError, subprocess.TimeoutExpired):
+    except (subprocess.CalledProcessError, FileNotFoundError, subprocess.TimeoutExpired, PermissionError):
         return False
 
 
@@ -210,21 +333,24 @@ def upload_video():
         max_pause = 0.5
         vad_threshold = 0.6
     
-    # Save uploaded file
-    filename = secure_filename(file.filename)
-    video_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+    import time
+    # Save uploaded file to isolated temporary path
+    safe_name = secure_filename(file.filename) or "video.mp4"
+    unique_prefix = f"upload_{os.getpid()}_{int(time.time()*1000)}_"
+    temp_video_filename = unique_prefix + safe_name
+    video_path = os.path.join(app.config['UPLOAD_FOLDER'], temp_video_filename)
     file.save(video_path)
 
     try:
         # Generate SRT file
         logger.info(f"Original filename: {file.filename}")
-        logger.info(f"Secured filename: {filename}")
-        logger.info(f"Processing video: {filename}")
+        logger.info(f"Temp upload path: {video_path}")
+        logger.info(f"Processing video: {safe_name}")
         logger.info(f"Model: {model_id}")
         logger.info(f"Subtitle settings: max_words={max_words}, max_chars={max_chars}, max_pause={max_pause}")
         logger.info(f"VAD settings: threshold={vad_threshold} (silence filtering)")
-        srt_filename = Path(filename).stem + '.srt'
-        srt_path = os.path.join(app.config['UPLOAD_FOLDER'], srt_filename)
+        srt_filename = Path(safe_name).stem + '.srt'
+        srt_path = os.path.join(app.config['UPLOAD_FOLDER'], unique_prefix + srt_filename)
         logger.info(f"SRT filename: {srt_filename}")
         logger.info(f"SRT path: {srt_path}")
         
@@ -266,8 +392,382 @@ def upload_video():
         if os.path.exists(video_path):
             os.remove(video_path)
         if os.path.exists(srt_path):
-            # Give time for file to be sent before deletion
             pass
+
+
+@app.route('/export-ass', methods=['POST'])
+def export_ass():
+    """
+    Generate and download styled .ass subtitle file
+    """
+    try:
+        data = request.get_json(silent=True) or {}
+        subtitles = data.get('subtitles', [])
+        styles = data.get('styles', {})
+        filename = data.get('filename', 'subtitles.ass')
+        
+        if not filename.endswith('.ass'):
+            filename = Path(filename).stem + '.ass'
+            
+        ass_content = generate_ass_script(subtitles, styles)
+        
+        temp_dir = tempfile.mkdtemp()
+        ass_path = os.path.join(temp_dir, filename)
+        with open(ass_path, 'w', encoding='utf-8') as f:
+            f.write(ass_content)
+            
+        return send_file(
+            ass_path,
+            as_attachment=True,
+            download_name=filename,
+            mimetype='text/plain'
+        )
+    except Exception as e:
+        logger.error(f"Error generating ASS subtitle: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+EXPORT_JOBS = {}
+
+
+def get_media_duration(file_path):
+    """Get duration of video or audio file in seconds using FFmpeg stderr output"""
+    ffmpeg_bin = get_ffmpeg_binary()
+    try:
+        res = subprocess.run([ffmpeg_bin, '-i', file_path], capture_output=True, text=True, timeout=5)
+        match = re.search(r"Duration:\s*(\d+):(\d+):(\d+\.?\d*)", res.stderr)
+        if match:
+            h, m, s = match.groups()
+            return int(h) * 3600 + int(m) * 60 + float(s)
+    except Exception as e:
+        logger.warning(f"Could not parse media duration: {e}")
+    return 0.0
+
+
+def run_export_burning_job(job_id, input_video_path, ass_path, out_video_path, out_video_name, total_duration):
+    """Background worker that burns subtitles with FFmpeg and tracks real-time progress"""
+    try:
+        ffmpeg_bin = get_ffmpeg_binary()
+        escaped_ass_path = ass_path.replace('\\', '/').replace(':', '\\:').replace("'", "\\'")
+        
+        EXPORT_JOBS[job_id] = {
+            'status': 'rendering',
+            'progress': 2.0,
+            'speed': '1.0x',
+            'out_time': '00:00:00',
+            'total_duration': total_duration
+        }
+        
+        cmd = [
+            ffmpeg_bin,
+            '-y',
+            '-i', input_video_path,
+            '-vf', f"ass='{escaped_ass_path}'",
+            '-c:v', 'libx264',
+            '-preset', 'fast',
+            '-crf', '20',
+            '-c:a', 'copy',
+            '-progress', 'pipe:1',
+            out_video_path
+        ]
+        
+        logger.info(f"Starting video burn job {job_id}: {cmd}")
+        
+        process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, bufsize=1)
+        
+        # Read progress lines
+        for line in process.stdout:
+            line = line.strip()
+            if line.startswith('out_time_us='):
+                try:
+                    val = float(line.split('=')[1])
+                    curr_sec = val / 1000000.0
+                    if total_duration > 0:
+                        pct = min(99.0, max(2.0, round((curr_sec / total_duration) * 100.0, 1)))
+                        EXPORT_JOBS[job_id]['progress'] = pct
+                except Exception:
+                    pass
+            elif line.startswith('out_time_ms='):
+                try:
+                    val = float(line.split('=')[1])
+                    curr_sec = val / 1000.0 if val < 100000000 else val / 1000000.0
+                    if total_duration > 0:
+                        pct = min(99.0, max(2.0, round((curr_sec / total_duration) * 100.0, 1)))
+                        EXPORT_JOBS[job_id]['progress'] = pct
+                except Exception:
+                    pass
+            elif line.startswith('out_time='):
+                out_time_val = line.split('=', 1)[1]
+                EXPORT_JOBS[job_id]['out_time'] = out_time_val
+                # Fallback calculation from out_time HH:MM:SS if out_time_us was not received
+                if EXPORT_JOBS[job_id].get('progress', 0) <= 2.0 and total_duration > 0:
+                    try:
+                        pts = out_time_val.replace(',', '.').split(':')
+                        if len(pts) == 3:
+                            curr_sec = int(pts[0]) * 3600 + int(pts[1]) * 60 + float(pts[2])
+                            pct = min(99.0, max(2.0, round((curr_sec / total_duration) * 100.0, 1)))
+                            EXPORT_JOBS[job_id]['progress'] = pct
+                    except Exception:
+                        pass
+            elif line.startswith('speed='):
+                speed_val = line.split('=', 1)[1].strip()
+                EXPORT_JOBS[job_id]['speed'] = speed_val
+            elif line.startswith('progress=end'):
+                EXPORT_JOBS[job_id]['progress'] = 100.0
+                
+        stderr_output = process.stderr.read()
+        process.wait()
+        
+        # Audio fallback if copy failed
+        if process.returncode != 0 and ('could not find tag for codec' in stderr_output.lower() or 'pcm' in stderr_output.lower() or 'flac' in stderr_output.lower()):
+            logger.warning("Audio copy failed during progress burn, retrying with AAC...")
+            cmd_fallback = [
+                ffmpeg_bin,
+                '-y',
+                '-i', input_video_path,
+                '-vf', f"ass='{escaped_ass_path}'",
+                '-c:v', 'libx264',
+                '-preset', 'fast',
+                '-crf', '20',
+                '-c:a', 'aac',
+                '-b:a', '192k',
+                '-progress', 'pipe:1',
+                out_video_path
+            ]
+            process_fb = subprocess.Popen(cmd_fallback, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, bufsize=1)
+            for line in process_fb.stdout:
+                line = line.strip()
+                if line.startswith('out_time_us='):
+                    try:
+                        val = float(line.split('=')[1])
+                        curr_sec = val / 1000000.0
+                        if total_duration > 0:
+                            pct = min(99.0, max(2.0, round((curr_sec / total_duration) * 100.0, 1)))
+                            EXPORT_JOBS[job_id]['progress'] = pct
+                    except Exception:
+                        pass
+                elif line.startswith('out_time_ms='):
+                    try:
+                        val = float(line.split('=')[1])
+                        curr_sec = val / 1000.0 if val < 100000000 else val / 1000000.0
+                        if total_duration > 0:
+                            pct = min(99.0, max(2.0, round((curr_sec / total_duration) * 100.0, 1)))
+                            EXPORT_JOBS[job_id]['progress'] = pct
+                    except Exception:
+                        pass
+                elif line.startswith('out_time='):
+                    EXPORT_JOBS[job_id]['out_time'] = line.split('=', 1)[1]
+                elif line.startswith('speed='):
+                    EXPORT_JOBS[job_id]['speed'] = line.split('=', 1)[1].strip()
+            process_fb.wait()
+            if process_fb.returncode != 0:
+                raise RuntimeError(f"FFmpeg render failed: {process_fb.stderr.read()[-300:]}")
+        elif process.returncode != 0:
+            raise RuntimeError(f"FFmpeg render failed: {stderr_output[-300:]}")
+            
+        if not os.path.exists(out_video_path) or os.path.getsize(out_video_path) == 0:
+            raise RuntimeError("Rendered video file is empty or missing")
+            
+        EXPORT_JOBS[job_id] = {
+            'status': 'complete',
+            'progress': 100.0,
+            'out_video_path': out_video_path,
+            'out_video_name': out_video_name
+        }
+        logger.info(f"✓ Video export job {job_id} complete! Output: {out_video_name}")
+        
+    except Exception as e:
+        logger.error(f"Error in export job {job_id}: {e}")
+        EXPORT_JOBS[job_id] = {
+            'status': 'error',
+            'progress': 0,
+            'error': str(e)
+        }
+
+
+@app.route('/start-export-video', methods=['POST'])
+def start_export_video():
+    """Start asynchronous video burning export job and return job_id for progress tracking"""
+    import threading
+    import uuid
+    
+    if 'video' not in request.files:
+        return jsonify({'error': 'No video file provided'}), 400
+        
+    video_file = request.files['video']
+    if video_file.filename == '':
+        return jsonify({'error': 'Empty video file'}), 400
+        
+    subtitles_raw = request.form.get('subtitles', '[]')
+    styles_raw = request.form.get('styles', '{}')
+    
+    try:
+        subtitles = json.loads(subtitles_raw)
+    except Exception:
+        subtitles = []
+        
+    try:
+        styles = json.loads(styles_raw)
+    except Exception:
+        styles = {}
+        
+    if not subtitles:
+        return jsonify({'error': 'No subtitles provided for burning'}), 400
+        
+    job_id = str(uuid.uuid4())
+    temp_dir = tempfile.mkdtemp()
+    input_video_filename = secure_filename(video_file.filename) or 'input.mp4'
+    input_video_path = os.path.join(temp_dir, input_video_filename)
+    video_file.save(input_video_path)
+    
+    ass_path = os.path.join(temp_dir, 'subtitles.ass')
+    out_video_name = Path(input_video_filename).stem + '_subtitled.mp4'
+    out_video_path = os.path.join(temp_dir, out_video_name)
+    
+    # 1. Generate ASS content with styles
+    ass_content = generate_ass_script(subtitles, styles)
+    with open(ass_path, 'w', encoding='utf-8') as f:
+        f.write(ass_content)
+        
+    total_duration = get_media_duration(input_video_path)
+    # If duration could not be determined, estimate from last subtitle end time
+    if total_duration <= 0 and subtitles:
+        try:
+            last_end = subtitles[-1].get('endTime', '00:00:10,000')
+            parts = last_end.replace(',', '.').split(':')
+            total_duration = int(parts[0]) * 3600 + int(parts[1]) * 60 + float(parts[2])
+        except Exception:
+            total_duration = 30.0
+            
+    EXPORT_JOBS[job_id] = {
+        'status': 'starting',
+        'progress': 1.0,
+        'total_duration': total_duration
+    }
+    
+    worker = threading.Thread(
+        target=run_export_burning_job,
+        args=(job_id, input_video_path, ass_path, out_video_path, out_video_name, total_duration),
+        daemon=True
+    )
+    worker.start()
+    
+    return jsonify({
+        'status': 'started',
+        'job_id': job_id,
+        'duration': total_duration
+    })
+
+
+@app.route('/export-progress/<job_id>', methods=['GET'])
+def get_export_progress(job_id):
+    """Check rendering progress percentage and speed of an export job"""
+    job = EXPORT_JOBS.get(job_id)
+    if not job:
+        return jsonify({'status': 'not_found', 'progress': 0}), 404
+    return jsonify(job)
+
+
+@app.route('/download-exported-video/<job_id>', methods=['GET'])
+def download_exported_video(job_id):
+    """Download the completed burned MP4 video for a finished export job"""
+    job = EXPORT_JOBS.get(job_id)
+    if not job or job.get('status') != 'complete':
+        return jsonify({'error': 'Export job is not complete or not found'}), 404
+        
+    out_video_path = job.get('out_video_path')
+    out_video_name = job.get('out_video_name', 'subtitled_video.mp4')
+    
+    if not out_video_path or not os.path.exists(out_video_path):
+        return jsonify({'error': 'Exported file not found on disk'}), 404
+        
+    return send_file(
+        out_video_path,
+        as_attachment=True,
+        download_name=out_video_name,
+        mimetype='video/mp4'
+    )
+
+
+@app.route('/export-video', methods=['POST'])
+def export_burned_video():
+    """Synchronous fallback endpoint for video burning"""
+    if 'video' not in request.files:
+        return jsonify({'error': 'No video file provided'}), 400
+        
+    video_file = request.files['video']
+    if video_file.filename == '':
+        return jsonify({'error': 'Empty video file'}), 400
+        
+    subtitles_raw = request.form.get('subtitles', '[]')
+    styles_raw = request.form.get('styles', '{}')
+    
+    try:
+        subtitles = json.loads(subtitles_raw)
+    except Exception:
+        subtitles = []
+        
+    try:
+        styles = json.loads(styles_raw)
+    except Exception:
+        styles = {}
+        
+    if not subtitles:
+        return jsonify({'error': 'No subtitles provided for burning'}), 400
+        
+    temp_dir = tempfile.mkdtemp()
+    input_video_filename = secure_filename(video_file.filename) or 'input.mp4'
+    input_video_path = os.path.join(temp_dir, input_video_filename)
+    video_file.save(input_video_path)
+    
+    ass_path = os.path.join(temp_dir, 'subtitles.ass')
+    out_video_name = Path(input_video_filename).stem + '_subtitled.mp4'
+    out_video_path = os.path.join(temp_dir, out_video_name)
+    
+    try:
+        ass_content = generate_ass_script(subtitles, styles)
+        with open(ass_path, 'w', encoding='utf-8') as f:
+            f.write(ass_content)
+            
+        ffmpeg_bin = get_ffmpeg_binary()
+        escaped_ass_path = ass_path.replace('\\', '/').replace(':', '\\:').replace("'", "\\'")
+        
+        cmd = [
+            ffmpeg_bin,
+            '-y',
+            '-i', input_video_path,
+            '-vf', f"ass='{escaped_ass_path}'",
+            '-c:v', 'libx264',
+            '-preset', 'fast',
+            '-crf', '20',
+            '-c:a', 'copy',
+            out_video_path
+        ]
+        
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        if result.returncode != 0:
+            cmd_fallback = [
+                ffmpeg_bin,
+                '-y',
+                '-i', input_video_path,
+                '-vf', f"ass='{escaped_ass_path}'",
+                '-c:v', 'libx264',
+                '-preset', 'fast',
+                '-crf', '20',
+                '-c:a', 'aac',
+                '-b:a', '192k',
+                out_video_path
+            ]
+            subprocess.run(cmd_fallback, capture_output=True, text=True)
+            
+        return send_file(
+            out_video_path,
+            as_attachment=True,
+            download_name=out_video_name,
+            mimetype='video/mp4'
+        )
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 
 if __name__ == '__main__':

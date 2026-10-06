@@ -3,409 +3,881 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Video Subtitle Editor</title>
+    <title>Hinglish Subtitle Studio & Video Editor</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;600;700;800&family=Montserrat:wght@400;600;700;800;900&family=Outfit:wght@400;600;700;800&family=Poppins:wght@400;600;700;800&family=Roboto:wght@400;500;700;900&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        .subtitle-overlay {
-            position: absolute;
-            bottom: 60px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: rgba(0, 0, 0, 0.8);
-            color: white;
-            padding: 8px 16px;
-            border-radius: 4px;
-            font-size: 20px;
-            font-weight: 500;
-            text-align: center;
-            max-width: 80%;
-            line-height: 1.4;
-            pointer-events: none;
-            z-index: 10;
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
         }
-        
-        .video-container {
+        ::-webkit-scrollbar-track {
+            background: #0f172a;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #334155;
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #475569;
+        }
+
+        .video-wrapper {
             position: relative;
             background: #000;
-            border-radius: 8px;
+            border-radius: 12px;
             overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            min-height: 280px;
+            max-height: 520px;
+            aspect-ratio: 16 / 9;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
         }
-        
-        .subtitle-item {
-            transition: all 0.2s;
+
+        #videoPlayer {
+            width: 100%;
+            height: 100%;
+            max-height: 520px;
+            object-fit: contain;
+            background: #000;
+            display: block;
         }
-        
-        .subtitle-item:hover {
-            background: #f1f5f9;
+
+        /* Live Subtitle Overlay */
+        .subtitle-canvas-overlay {
+            position: absolute;
+            pointer-events: none;
+            z-index: 20;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            height: 100%;
+            top: 0;
+            left: 0;
+            box-sizing: border-box;
+            padding: 24px;
         }
-        
-        .subtitle-item.active {
-            background: #dbeafe;
-            border-left: 3px solid #3b82f6;
+
+        .subtitle-box {
+            display: inline-block;
+            transition: all 0.05s ease-out;
+            max-width: 90%;
+            word-wrap: break-word;
+            white-space: pre-wrap;
+            line-height: 1.35;
+            user-select: none;
         }
-        
-        .time-input {
-            font-family: 'Courier New', monospace;
-            font-size: 12px;
+
+        .subtitle-card {
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .subtitle-card.active-sub {
+            background-color: #1e3a8a;
+            border-color: #60a5fa;
+            box-shadow: 0 4px 14px rgba(96, 165, 250, 0.25);
+            transform: scale(1.01);
+        }
+
+        .color-dot {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            cursor: pointer;
+            border: 2px solid #475569;
+            transition: transform 0.15s, border-color 0.15s;
+        }
+        .color-dot:hover {
+            transform: scale(1.15);
+            border-color: #60a5fa;
+        }
+
+        input[type=range] {
+            accent-color: #3b82f6;
         }
     </style>
 </head>
-<body class="bg-slate-50 min-h-screen">
-    <!-- Header -->
-    <header class="bg-white border-b border-slate-200 sticky top-0 z-20">
-        <div class="max-w-7xl mx-auto px-4 py-4">
-            <div class="flex items-center justify-between">
-                <div>
-                    <h1 class="text-2xl font-bold text-slate-900">Video Subtitle Editor</h1>
-                    <p class="text-sm text-slate-600">Edit and preview your subtitles in real-time</p>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col font-sans selection:bg-blue-600 selection:text-white">
+
+    <!-- Top Navigation Header -->
+    <header class="bg-slate-900/90 backdrop-blur border-b border-slate-800 sticky top-0 z-40 px-4 py-3">
+        <div class="max-w-[1700px] mx-auto flex flex-wrap items-center justify-between gap-3">
+            <div class="flex items-center gap-3">
+                <a href="/" class="flex items-center gap-2">
+                    <span class="text-2xl">⚡</span>
+                    <div>
+                        <h1 class="text-lg font-bold text-white tracking-tight leading-none">Hinglish Subtitle Studio</h1>
+                        <p class="text-xs text-slate-400">Whisper AI Subtitles & Video Styler</p>
+                    </div>
+                </a>
+                <div class="hidden sm:flex items-center gap-2 ml-4 pl-4 border-l border-slate-700 text-xs text-slate-300">
+                    <span id="statusIndicator" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-800 border border-slate-700">
+                        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                        <span id="deviceStatusText">Checking system...</span>
+                    </span>
+                    <span id="ffmpegBadge" class="hidden md:inline-flex items-center px-2 py-0.5 rounded bg-blue-950/60 border border-blue-800 text-blue-300">FFmpeg Ready</span>
                 </div>
-                <div class="flex gap-3">
-                    <a href="/" class="px-4 py-2 bg-slate-600 text-white rounded-lg hover:bg-slate-700 transition-colors">
-                        ← Back
-                    </a>
-                    <button id="downloadSrtBtn" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed" disabled>
-                        📥 Download SRT
-                    </button>
-                </div>
+            </div>
+
+            <!-- Header Action Controls -->
+            <div class="flex items-center gap-2">
+                <button id="importVideoBtn" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium rounded-lg border border-slate-700 transition flex items-center gap-1.5" title="Change or load video file">
+                    <svg class="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+                    <span>Load Video</span>
+                </button>
+                <input type="file" id="headerVideoInput" accept="video/*,audio/*,.mp4,.mov,.mkv,.webm,.avi" class="hidden">
+
+                <button id="importSrtBtn" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium rounded-lg border border-slate-700 transition flex items-center gap-1.5" title="Import existing SRT file">
+                    <svg class="w-4 h-4 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+                    Import SRT
+                </button>
+                <input type="file" id="srtFileInput" accept=".srt" class="hidden">
+
+                <button id="downloadSrtBtn" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium rounded-lg border border-slate-700 transition flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed" disabled>
+                    <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                    Download SRT
+                </button>
+
+                <button id="downloadAssBtn" class="hidden sm:flex px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium rounded-lg border border-slate-700 transition items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed" disabled title="Download styled ASS subtitle for Premiere/DaVinci">
+                    <svg class="w-4 h-4 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
+                    Styled ASS
+                </button>
+
+                <button id="exportVideoBtn" class="px-4 py-1.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs font-semibold rounded-lg shadow-lg shadow-blue-500/25 transition flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed" disabled>
+                    <svg class="w-4 h-4" id="exportVideoIcon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+                    <span>Export Video</span>
+                </button>
+
+                <button id="resetSessionBtn" class="px-2.5 py-1.5 text-slate-400 hover:text-white text-xs rounded-lg hover:bg-slate-800 transition" title="Start new session">
+                    🔄 New
+                </button>
             </div>
         </div>
     </header>
 
-    <div class="max-w-7xl mx-auto px-4 py-6">
-        <!-- System Status -->
-        <div class="bg-white rounded-lg border border-slate-200 p-6 mb-6">
-            <div class="flex items-center justify-between mb-4">
-                <h2 class="text-lg font-semibold text-slate-900">System Status</h2>
-                <span id="serverStatus" class="flex items-center gap-2 text-sm text-green-600">
-                    <span class="relative flex h-3 w-3">
-                        <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                        <span class="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
-                    </span>
-                    Server Running
-                </span>
-            </div>
-            
-            <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div class="flex items-center gap-3 p-3 bg-slate-50 rounded-lg">
-                    <span id="pythonStatus" class="text-2xl">⏳</span>
-                    <div>
-                        <p class="text-sm font-medium text-slate-900">Python</p>
-                        <p id="pythonVersion" class="text-xs text-slate-600">Checking...</p>
-                    </div>
-                </div>
-                
-                <div class="flex items-center gap-3 p-3 bg-slate-50 rounded-lg">
-                    <span id="ffmpegStatus" class="text-2xl">⏳</span>
-                    <div>
-                        <p class="text-sm font-medium text-slate-900">FFmpeg</p>
-                        <p id="ffmpegVersion" class="text-xs text-slate-600">Checking...</p>
-                    </div>
-                </div>
-                
-                <div class="flex items-center gap-3 p-3 bg-slate-50 rounded-lg">
-                    <span id="depsStatus" class="text-2xl">⏳</span>
-                    <div>
-                        <p class="text-sm font-medium text-slate-900">Dependencies</p>
-                        <p id="depsVersion" class="text-xs text-slate-600">Checking...</p>
-                    </div>
-                </div>
-                
-                <div class="flex items-center gap-3 p-3 bg-slate-50 rounded-lg">
-                    <span id="deviceStatus" class="text-2xl">⏳</span>
-                    <div>
-                        <p class="text-sm font-medium text-slate-900">Processing Device</p>
-                        <p id="deviceInfo" class="text-xs text-slate-600">Checking...</p>
-                    </div>
-                </div>
-            </div>
-        </div>
+    <!-- Main Content Area -->
+    <main class="flex-1 max-w-[1700px] w-full mx-auto p-3 sm:p-4 lg:p-6 flex flex-col gap-6">
 
-        <!-- Upload Section -->
-        <div id="uploadSection" class="bg-white rounded-lg border border-slate-200 p-8 mb-6">
+        <!-- 1. Upload & AI Transcription Section (Initial State) -->
+        <section id="uploadSection" class="bg-slate-900/90 rounded-2xl border border-slate-800 p-6 sm:p-8 max-w-4xl mx-auto w-full shadow-2xl backdrop-blur">
+            <div class="text-center max-w-2xl mx-auto mb-8">
+                <h2 class="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">Generate & Style Hinglish Subtitles</h2>
+                <p class="text-sm text-slate-400 mt-2">Upload any video or audio in Hindi/English mixed speech. Whisper AI will produce perfectly timed Roman English (Hinglish) subtitles with full styling and video export.</p>
+            </div>
+
             <form id="uploadForm" enctype="multipart/form-data">
-                <div id="uploadArea" class="border-2 border-dashed border-slate-300 rounded-lg p-12 text-center cursor-pointer hover:border-blue-500 hover:bg-blue-50 transition-all">
-                    <input type="file" id="videoFile" name="video" accept="video/*,audio/*,.mp3,.wav,.ogg,.flac,.m4a,.aac,.wv,.wma,.opus" required class="hidden">
+                <div id="dropArea" class="border-2 border-dashed border-slate-700 hover:border-blue-500 rounded-xl p-8 sm:p-12 text-center cursor-pointer bg-slate-950/60 hover:bg-blue-950/20 transition-all group">
+                    <input type="file" id="videoFileInput" name="video" accept="video/*,audio/*,.mp4,.mov,.mkv,.webm,.avi,.wav,.mp3" class="hidden">
                     <div class="flex flex-col items-center gap-3">
-                        <div class="w-16 h-16 rounded-full bg-blue-100 flex items-center justify-center">
-                            <svg class="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
-                            </svg>
+                        <div class="w-16 h-16 rounded-2xl bg-blue-600/10 border border-blue-500/30 flex items-center justify-center text-blue-400 group-hover:scale-110 transition-transform">
+                            <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
                         </div>
                         <div>
-                            <p class="text-sm font-medium text-slate-900 mb-1">
-                                <span class="text-blue-600">Click to upload</span> or drag and drop
-                            </p>
-                            <p class="text-xs text-slate-600">Video: MP4, AVI, MOV, MKV, WEBM, FLV, WMV</p>
-                            <p class="text-xs text-slate-600">Audio: WAV, MP3, OGG, FLAC, M4A, AAC, WV, WMA, OPUS (Max 500MB)</p>
+                            <p class="text-base font-semibold text-white">Click to select video or drag & drop</p>
+                            <p class="text-xs text-slate-400 mt-1">MP4, MOV, MKV, WEBM, AVI, WAV, MP3 (Up to 1GB)</p>
                         </div>
                     </div>
                 </div>
 
-                <div id="fileInfo" class="hidden mt-4 p-4 bg-slate-50 rounded-lg">
+                <!-- Selected File Pill -->
+                <div id="selectedFileInfo" class="hidden mt-4 p-3 bg-slate-950 border border-blue-500/40 rounded-xl flex items-center justify-between">
                     <div class="flex items-center gap-3">
-                        <svg class="w-10 h-10 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/>
-                        </svg>
-                        <div class="flex-1">
-                            <p class="text-sm font-medium text-slate-900" id="fileName"></p>
-                            <p class="text-xs text-slate-600" id="fileSize"></p>
+                        <span class="text-xl">🎬</span>
+                        <div>
+                            <p id="selectedFileName" class="text-sm font-semibold text-white truncate max-w-xs sm:max-w-md"></p>
+                            <p id="selectedFileSize" class="text-xs text-slate-400"></p>
                         </div>
                     </div>
+                    <button type="button" id="clearFileBtn" class="text-xs text-red-400 hover:text-red-300 p-1.5">Remove</button>
                 </div>
 
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6">
+                <!-- Settings Row -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 mt-6">
                     <div>
-                        <label class="block text-sm font-medium text-slate-900 mb-2">AI Model</label>
-                        <select id="model" name="model" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-                            <option value="apex">⭐ Apex - Ultimate quality</option>
-                            <option value="prime">🏆 Prime - Best quality</option>
-                            <option value="swift">⚡ Swift - Faster</option>
+                        <label class="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2">Whisper AI Model</label>
+                        <select id="modelSelect" name="model" class="w-full bg-slate-950 border border-slate-700 text-white rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+                            <option value="apex">⭐ Apex - Hindi2Hinglish (Best)</option>
+                            <option value="prime">🏆 Prime - Accurate</option>
+                            <option value="swift">⚡ Swift - Fast</option>
                         </select>
                     </div>
                     <div>
-                        <label class="block text-sm font-medium text-slate-900 mb-2">Max Words per Subtitle</label>
-                        <input type="number" id="maxWords" name="maxWords" value="4" min="1" max="10" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                        <label class="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2">Max Words / Chunk</label>
+                        <input type="number" id="maxWordsInput" name="maxWords" value="4" min="1" max="10" class="w-full bg-slate-950 border border-slate-700 text-white rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2">Silence Filter (VAD)</label>
+                        <input type="number" id="vadThresholdInput" name="vadThreshold" value="0.6" step="0.1" min="0.1" max="0.9" class="w-full bg-slate-950 border border-slate-700 text-white rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
                     </div>
                 </div>
 
-                <!-- Advanced Settings -->
-                <div class="mt-6 p-4 bg-slate-50 rounded-lg border border-slate-200">
-                    <h3 class="text-sm font-semibold text-slate-900 mb-3">⚙️ Advanced Settings</h3>
-                    
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div>
-                            <label class="block text-xs font-medium text-slate-700 mb-1">Max Characters per Line</label>
-                            <input type="number" id="maxChars" name="maxChars" value="42" min="20" max="60" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500">
-                            <p class="mt-1 text-xs text-slate-500">Netflix: 42 chars</p>
-                        </div>
-                        
-                        <div>
-                            <label class="block text-xs font-medium text-slate-700 mb-1">Max Pause Gap (seconds)</label>
-                            <input type="number" id="maxPause" name="maxPause" value="0.5" min="0.1" max="2.0" step="0.1" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500">
-                            <p class="mt-1 text-xs text-slate-500">Break subtitle after pause</p>
-                        </div>
-                        
-                        <div>
-                            <label class="block text-xs font-medium text-slate-700 mb-1">
-                                Silence Filter Threshold
-                                <span class="text-blue-600 cursor-help" title="Filters out silent parts - higher value = more aggressive filtering">ℹ️</span>
-                            </label>
-                            <input type="number" id="vadThreshold" name="vadThreshold" value="0.6" min="0.1" max="0.9" step="0.1" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500">
-                            <p class="mt-1 text-xs text-slate-500">Higher = stricter (0.6 recommended)</p>
-                        </div>
-                    </div>
-                    
-                    <div class="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                        <p class="text-xs text-blue-800">
-                            <strong>🔇 Silence Filtering:</strong> Automatically removes subtitles during silent parts using Voice Activity Detection (VAD). 
-                            Higher threshold = more aggressive filtering. Recommended: 0.6 for most videos, 0.7-0.8 for videos with background music.
-                        </p>
-                    </div>
+                <div class="flex flex-col sm:flex-row gap-3 mt-6">
+                    <button type="submit" id="startTranscribeBtn" class="flex-1 py-3 px-6 bg-blue-600 hover:bg-blue-500 text-white font-semibold text-sm rounded-xl shadow-lg shadow-blue-600/30 transition flex items-center justify-center gap-2">
+                        <span>✨ Generate AI Hinglish Subtitles</span>
+                    </button>
+                    <button type="button" id="manualEditBtn" class="py-3 px-5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-medium text-sm rounded-xl transition flex items-center justify-center gap-2">
+                        <span>✍️ Open Editor Directly (Or Import SRT)</span>
+                    </button>
                 </div>
 
-                <button type="submit" id="generateBtn" class="w-full mt-6 px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium">
-                    Generate Subtitles
-                </button>
-
-                <div id="progress" class="hidden mt-4">
-                    <div class="h-2 bg-slate-200 rounded-full overflow-hidden">
-                        <div id="progressBar" class="h-full bg-blue-600 transition-all duration-500" style="width: 0%"></div>
+                <!-- Progress Bar -->
+                <div id="transcribeProgress" class="hidden mt-6 bg-slate-950 p-4 rounded-xl border border-slate-800">
+                    <div class="flex justify-between text-xs font-medium mb-1.5">
+                        <span id="transcribeStatusText" class="text-blue-400">Processing audio & generating timestamps...</span>
+                        <span id="transcribePercentText" class="text-slate-400">0%</span>
                     </div>
-                    <p id="status" class="text-sm text-center text-slate-600 mt-2"></p>
+                    <div class="w-full bg-slate-800 h-2.5 rounded-full overflow-hidden">
+                        <div id="transcribeProgressBar" class="h-full bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full transition-all duration-300 w-0"></div>
+                    </div>
                 </div>
             </form>
-        </div>
+        </section>
 
-        <!-- Editor Section -->
-        <div id="editorSection" class="hidden">
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <!-- Video Preview -->
-                <div class="bg-white rounded-lg border border-slate-200 p-4">
-                    <h2 class="text-lg font-semibold text-slate-900 mb-4">Video Preview</h2>
-                    <div class="video-container">
-                        <video id="videoPlayer" class="w-full" controls>
-                            <source id="videoSource" src="" type="video/mp4">
-                        </video>
-                        <div id="subtitleOverlay" class="subtitle-overlay hidden"></div>
-                    </div>
-                    <div class="mt-4 flex items-center gap-2">
-                        <label class="flex items-center gap-2 cursor-pointer">
-                            <input type="checkbox" id="showSubtitles" checked class="w-4 h-4 text-blue-600 rounded focus:ring-2 focus:ring-blue-500">
-                            <span class="text-sm text-slate-700">Show subtitles on video</span>
-                        </label>
-                    </div>
-                </div>
+        <!-- 2. Dual-Panel Studio Workspace (Active Editor View) -->
+        <section id="studioWorkspace" class="hidden flex-1 grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
 
-                <!-- Subtitle Editor -->
-                <div class="bg-white rounded-lg border border-slate-200 p-4">
-                    <div class="flex items-center justify-between mb-4">
-                        <h2 class="text-lg font-semibold text-slate-900">Subtitle Editor</h2>
-                        <button id="addSubtitleBtn" class="px-3 py-1 text-sm bg-green-600 text-white rounded hover:bg-green-700 transition-colors">
-                            + Add Subtitle
+            <!-- LEFT COLUMN: Sticky Video Player + Subtitle Overlay + Styling Panel (7 Cols) -->
+            <div class="lg:col-span-7 flex flex-col gap-5 lg:sticky lg:top-20">
+                
+                <!-- Video Player Card with Overlay -->
+                <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 shadow-xl backdrop-blur">
+                    <div class="flex items-center justify-between mb-3 px-1">
+                        <div class="flex items-center gap-2">
+                            <span class="text-sm font-bold text-slate-200">🎬 Video Preview</span>
+                            <span id="videoTitleBadge" class="text-xs text-slate-400 font-mono truncate max-w-xs"></span>
+                        </div>
+                        <button id="changeVideoBtn" class="text-xs text-blue-400 hover:text-blue-300 flex items-center gap-1">
+                            📁 Switch Video
                         </button>
                     </div>
-                    <div id="subtitleList" class="space-y-2 max-h-[600px] overflow-y-auto">
-                        <!-- Subtitles will be populated here -->
+
+                    <div class="video-wrapper" id="videoContainer">
+                        <video id="videoPlayer" controls playsinline preload="auto"></video>
+                        <!-- Live Subtitle Overlay -->
+                        <div id="subtitleCanvasOverlay" class="subtitle-canvas-overlay">
+                            <span id="liveSubtitleBox" class="subtitle-box">Preview Subtitle Text</span>
+                        </div>
+                    </div>
+
+                    <!-- Video Controls Row -->
+                    <div class="mt-4 flex flex-wrap items-center justify-between gap-3 bg-slate-950 p-2.5 rounded-xl border border-slate-800 text-xs">
+                        <div class="flex items-center gap-2">
+                            <button id="skipBackBtn" class="p-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg" title="Back 2s (Left Arrow)">⏪ -2s</button>
+                            <button id="skipFwdBtn" class="p-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg" title="Forward 2s (Right Arrow)">+2s ⏩</button>
+                            <span id="timeDisplay" class="text-slate-300 font-mono px-2">00:00.00 / 00:00.00</span>
+                        </div>
+
+                        <div class="flex items-center gap-3">
+                            <!-- Speed -->
+                            <div class="flex items-center gap-1">
+                                <span class="text-slate-400">Speed:</span>
+                                <select id="playbackSpeed" class="bg-slate-800 text-slate-200 border border-slate-700 rounded px-1.5 py-1 text-xs">
+                                    <option value="0.75">0.75x</option>
+                                    <option value="1" selected>1.0x</option>
+                                    <option value="1.25">1.25x</option>
+                                    <option value="1.5">1.5x</option>
+                                </select>
+                            </div>
+                            <!-- Subtitle visibility toggle -->
+                            <label class="flex items-center gap-1.5 cursor-pointer text-slate-300 select-none">
+                                <input type="checkbox" id="showOverlayToggle" checked class="w-3.5 h-3.5 rounded text-blue-600 focus:ring-0">
+                                <span>Show Subtitles</span>
+                            </label>
+                        </div>
                     </div>
                 </div>
+
+                <!-- Subtitle Styling & Customization Studio Card -->
+                <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 shadow-xl backdrop-blur flex flex-col gap-4">
+                    <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+                        <div class="flex items-center gap-2">
+                            <span class="text-lg">🎨</span>
+                            <h2 class="text-sm font-bold uppercase tracking-wider text-white">Subtitle Style & Formatting</h2>
+                        </div>
+                        <span class="text-xs text-slate-400">Applies live & in exported video</span>
+                    </div>
+
+                    <!-- Preset Badges -->
+                    <div>
+                        <span class="text-xs font-semibold text-slate-400 uppercase tracking-wider block mb-2">Style Presets</span>
+                        <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2 text-xs">
+                            <button class="preset-btn px-2.5 py-2 rounded-lg bg-slate-950 border border-slate-700 hover:border-blue-500 text-center font-medium transition" data-preset="viral">
+                                🔥 Reels / Viral
+                            </button>
+                            <button class="preset-btn px-2.5 py-2 rounded-lg bg-slate-950 border border-slate-700 hover:border-blue-500 text-center font-medium transition" data-preset="cinema">
+                                🎬 Classic Cinema
+                            </button>
+                            <button class="preset-btn px-2.5 py-2 rounded-lg bg-slate-950 border border-slate-700 hover:border-blue-500 text-center font-medium transition" data-preset="boxed">
+                                🏷️ Netflix Box
+                            </button>
+                            <button class="preset-btn px-2.5 py-2 rounded-lg bg-slate-950 border border-slate-700 hover:border-blue-500 text-center font-medium transition" data-preset="cyber">
+                                🌟 Neon Glow
+                            </button>
+                            <button class="preset-btn px-2.5 py-2 rounded-lg bg-slate-950 border border-slate-700 hover:border-blue-500 text-center font-medium transition" data-preset="contrast">
+                                🟡 High Contrast
+                            </button>
+                            <button class="preset-btn px-2.5 py-2 rounded-lg bg-slate-950 border border-slate-700 hover:border-blue-500 text-center font-medium transition" data-preset="minimal">
+                                ⚡ Clean Minimal
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Style Controls Grid -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-5 pt-2">
+                        
+                        <!-- Left Sub-panel: Typography & Colors -->
+                        <div class="flex flex-col gap-4 bg-slate-950/70 p-4 rounded-xl border border-slate-800">
+                            <h3 class="text-xs font-bold text-slate-300 uppercase tracking-wider">Typography & Colors</h3>
+
+                            <!-- Font Family -->
+                            <div>
+                                <label class="text-xs text-slate-400 block mb-1">Font Family</label>
+                                <select id="styleFontFamily" class="w-full bg-slate-900 border border-slate-700 text-white rounded-lg px-2.5 py-1.5 text-xs outline-none">
+                                    <option value="Montserrat" selected>Montserrat (Modern Bold)</option>
+                                    <option value="Bebas Neue">Bebas Neue (Viral Uppercase)</option>
+                                    <option value="Inter">Inter (Clean UI)</option>
+                                    <option value="Poppins">Poppins (Friendly)</option>
+                                    <option value="Outfit">Outfit (Geometric)</option>
+                                    <option value="Roboto">Roboto (Standard)</option>
+                                    <option value="Arial">Arial (Universal)</option>
+                                    <option value="Impact">Impact (Bold Meme)</option>
+                                    <option value="Courier New">Courier New (Monospace)</option>
+                                </select>
+                            </div>
+
+                            <!-- Font Size & Styles -->
+                            <div class="grid grid-cols-2 gap-3 items-center">
+                                <div>
+                                    <div class="flex justify-between text-xs text-slate-400 mb-1">
+                                        <span>Font Size</span>
+                                        <span id="fontSizeDisplay">32px</span>
+                                    </div>
+                                    <input type="range" id="styleFontSize" min="16" max="64" value="32" class="w-full">
+                                </div>
+                                <div>
+                                    <label class="text-xs text-slate-400 block mb-1">Text Style</label>
+                                    <div class="flex items-center gap-1 bg-slate-900 p-1 rounded-lg border border-slate-700">
+                                        <button id="toggleBold" class="flex-1 py-1 text-xs font-bold rounded bg-blue-600 text-white transition">B</button>
+                                        <button id="toggleItalic" class="flex-1 py-1 text-xs italic rounded text-slate-400 hover:text-white transition">I</button>
+                                        <button id="toggleUpper" class="flex-1 py-1 text-xs font-bold rounded bg-slate-800 text-white transition" title="Force Uppercase">AA</button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Text Color -->
+                            <div>
+                                <label class="text-xs text-slate-400 block mb-1">Text Color</label>
+                                <div class="flex items-center gap-2">
+                                    <input type="color" id="styleTextColor" value="#FFFFFF" class="w-8 h-8 rounded border-0 cursor-pointer bg-transparent">
+                                    <input type="text" id="styleTextColorHex" value="#FFFFFF" class="w-24 bg-slate-900 border border-slate-700 text-white rounded px-2 py-1 text-xs uppercase font-mono">
+                                    <div class="flex items-center gap-1.5 ml-auto">
+                                        <span class="color-dot bg-[#FFFFFF]" data-color="#FFFFFF" title="White"></span>
+                                        <span class="color-dot bg-[#FFE600]" data-color="#FFE600" title="Yellow"></span>
+                                        <span class="color-dot bg-[#00F0FF]" data-color="#00F0FF" title="Cyan"></span>
+                                        <span class="color-dot bg-[#00FF66]" data-color="#00FF66" title="Green"></span>
+                                        <span class="color-dot bg-[#FF0055]" data-color="#FF0055" title="Pink"></span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Stroke / Outline -->
+                            <div>
+                                <div class="flex justify-between text-xs text-slate-400 mb-1">
+                                    <span>Outline / Stroke Width</span>
+                                    <span id="outlineWidthDisplay">3px</span>
+                                </div>
+                                <div class="flex items-center gap-3">
+                                    <input type="color" id="styleOutlineColor" value="#000000" class="w-7 h-7 rounded border-0 cursor-pointer bg-transparent">
+                                    <input type="range" id="styleOutlineWidth" min="0" max="8" step="0.5" value="3" class="flex-1">
+                                </div>
+                            </div>
+
+                        </div>
+
+                        <!-- Right Sub-panel: Box, Shadow & Position -->
+                        <div class="flex flex-col gap-4 bg-slate-950/70 p-4 rounded-xl border border-slate-800">
+                            <h3 class="text-xs font-bold text-slate-300 uppercase tracking-wider">Background & Positioning</h3>
+
+                            <!-- Background Highlight / Box -->
+                            <div>
+                                <div class="flex justify-between text-xs text-slate-400 mb-1">
+                                    <span>Background Box Opacity</span>
+                                    <span id="boxOpacityDisplay">0%</span>
+                                </div>
+                                <div class="flex items-center gap-3">
+                                    <input type="color" id="styleBoxColor" value="#000000" class="w-7 h-7 rounded border-0 cursor-pointer bg-transparent">
+                                    <input type="range" id="styleBoxOpacity" min="0" max="100" value="0" class="flex-1">
+                                </div>
+                            </div>
+
+                            <!-- Drop Shadow -->
+                            <div>
+                                <div class="flex justify-between text-xs text-slate-400 mb-1">
+                                    <span>Drop Shadow Blur / Depth</span>
+                                    <span id="shadowDisplay">2px</span>
+                                </div>
+                                <div class="flex items-center gap-3">
+                                    <input type="color" id="styleShadowColor" value="#000000" class="w-7 h-7 rounded border-0 cursor-pointer bg-transparent">
+                                    <input type="range" id="styleShadow" min="0" max="8" step="0.5" value="2" class="flex-1">
+                                </div>
+                            </div>
+
+                            <!-- Position Presets (Top / Middle / Bottom) -->
+                            <div>
+                                <label class="text-xs text-slate-400 block mb-1">Position on Screen</label>
+                                <div class="grid grid-cols-3 gap-1.5 text-xs">
+                                    <button class="pos-preset-btn py-1.5 rounded bg-slate-900 border border-slate-700 hover:bg-slate-800 text-slate-300" data-align="8" data-pos="top">Top</button>
+                                    <button class="pos-preset-btn py-1.5 rounded bg-slate-900 border border-slate-700 hover:bg-slate-800 text-slate-300" data-align="5" data-pos="middle">Middle</button>
+                                    <button class="pos-preset-btn py-1.5 rounded bg-blue-600 border border-blue-500 font-semibold text-white" data-align="2" data-pos="bottom">Bottom</button>
+                                </div>
+                            </div>
+
+                            <!-- Vertical Offset Slider -->
+                            <div>
+                                <div class="flex justify-between text-xs text-slate-400 mb-1">
+                                    <span>Vertical Offset (Margin)</span>
+                                    <span id="marginVDisplay">50px</span>
+                                </div>
+                                <input type="range" id="styleMarginV" min="10" max="180" step="5" value="50" class="w-full">
+                            </div>
+
+                        </div>
+                    </div>
+                </div>
+
             </div>
+
+            <!-- RIGHT COLUMN: Interactive Subtitle Editor & Timeline (5 Cols) -->
+            <div class="lg:col-span-5 flex flex-col gap-4">
+                
+                <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-xl backdrop-blur flex flex-col h-full">
+                    
+                    <!-- Subtitle Editor Header -->
+                    <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-3">
+                        <div class="flex items-center gap-2">
+                            <span class="text-lg">📝</span>
+                            <h2 class="text-sm font-bold uppercase tracking-wider text-white">Subtitle Timeline</h2>
+                            <span id="subCountBadge" class="px-2 py-0.5 rounded-full bg-blue-900/60 border border-blue-700 text-blue-300 text-xs font-semibold">0 items</span>
+                        </div>
+                        
+                        <div class="flex items-center gap-2">
+                            <button id="addSubtitleAtCurrentBtn" class="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold rounded-lg shadow transition flex items-center gap-1">
+                                <span>➕ Add @ Current Time</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Search & Replace / Timing Tools Bar -->
+                    <div class="mt-3 flex flex-col gap-2 p-2.5 bg-slate-950 rounded-xl border border-slate-800 text-xs">
+                        <div class="flex items-center gap-2">
+                            <input type="text" id="searchInput" placeholder="Find Hinglish word..." class="flex-1 bg-slate-900 border border-slate-700 text-white rounded px-2 py-1 outline-none">
+                            <input type="text" id="replaceInput" placeholder="Replace with..." class="flex-1 bg-slate-900 border border-slate-700 text-white rounded px-2 py-1 outline-none">
+                            <button id="replaceAllBtn" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 font-medium rounded transition">Replace All</button>
+                        </div>
+                        <!-- Shift all timestamps tool -->
+                        <div class="flex items-center justify-between text-slate-400 pt-1 border-t border-slate-800">
+                            <span>Sync Offset:</span>
+                            <div class="flex items-center gap-1">
+                                <button class="shift-time-btn px-2 py-0.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded" data-shift="-0.5">-0.5s</button>
+                                <button class="shift-time-btn px-2 py-0.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded" data-shift="-0.1">-0.1s</button>
+                                <button class="shift-time-btn px-2 py-0.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded" data-shift="0.1">+0.1s</button>
+                                <button class="shift-time-btn px-2 py-0.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded" data-shift="0.5">+0.5s</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Subtitle Items List Container -->
+                    <div id="subtitleCardsList" class="flex-1 overflow-y-auto space-y-2.5 mt-3 pr-1.5 max-h-[calc(100vh-270px)] min-h-[460px]">
+                        <!-- Populated dynamically via JavaScript -->
+                    </div>
+
+                </div>
+
+            </div>
+
+        </section>
+
+    </main>
+
+    <!-- Export Video Progress Modal -->
+    <div id="exportModal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-4 transition-all duration-300">
+        <div class="bg-slate-900 border border-slate-700/80 rounded-3xl p-6 sm:p-8 max-w-lg w-full shadow-2xl text-center flex flex-col items-center relative overflow-hidden">
+            <!-- Background Glow Accent -->
+            <div class="absolute -top-24 -left-24 w-48 h-48 bg-blue-600/20 rounded-full blur-3xl pointer-events-none"></div>
+            <div class="absolute -bottom-24 -right-24 w-48 h-48 bg-indigo-600/20 rounded-full blur-3xl pointer-events-none"></div>
+
+            <!-- Animated Header Icon -->
+            <div id="exportIconWrapper" class="w-16 h-16 rounded-2xl bg-gradient-to-tr from-blue-600/20 to-indigo-600/20 border border-blue-500/30 flex items-center justify-center text-blue-400 mb-4 shadow-inner">
+                <svg id="exportSpinnerIcon" class="w-8 h-8 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-20" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3.5"></circle>
+                    <path class="opacity-90" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+                </svg>
+                <svg id="exportSuccessIcon" class="w-8 h-8 text-emerald-400 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"></path>
+                </svg>
+            </div>
+            
+            <h3 id="exportModalTitle" class="text-xl sm:text-2xl font-black text-white tracking-tight mb-1">Rendering Video</h3>
+            <p id="exportModalStatus" class="text-xs sm:text-sm text-slate-400 mb-5">Encoding video and burning styled subtitles with FFmpeg...</p>
+            
+            <!-- Percentage Badge & Speed Info -->
+            <div class="w-full flex items-center justify-between text-xs font-semibold px-1 mb-2">
+                <span id="exportProgressPercent" class="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-blue-400 via-indigo-300 to-emerald-400 font-mono">0%</span>
+                <div class="flex items-center gap-2">
+                    <span id="exportSpeedBadge" class="px-2 py-0.5 rounded-md bg-slate-800 border border-slate-700 text-slate-300 font-mono text-[11px]">⚡ 1.0x</span>
+                    <span id="exportTimeBadge" class="px-2 py-0.5 rounded-md bg-slate-800 border border-slate-700 text-slate-300 font-mono text-[11px]">⏱️ 00:00:00</span>
+                </div>
+            </div>
+
+            <!-- Main Animated Progress Bar -->
+            <div class="w-full bg-slate-950 p-1 rounded-2xl border border-slate-800/80 mb-5 shadow-inner">
+                <div class="w-full bg-slate-900 h-3.5 rounded-xl overflow-hidden relative">
+                    <div id="exportProgressBar" class="h-full bg-gradient-to-r from-blue-600 via-indigo-500 to-emerald-400 rounded-xl transition-all duration-300 w-0 shadow-lg shadow-blue-500/50"></div>
+                </div>
+            </div>
+
+            <!-- Action Buttons (Shown upon completion or error) -->
+            <div id="exportCompleteActions" class="hidden flex flex-col gap-2.5 w-full">
+                <a id="downloadExportedVideoBtn" href="#" download="subtitled_video.mp4" class="w-full py-3.5 px-5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-sm rounded-xl transition shadow-lg shadow-emerald-600/30 flex items-center justify-center gap-2">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                    <span>Download Burned Video (.mp4)</span>
+                </a>
+                <button id="closeExportModalBtn" class="py-2.5 px-4 text-xs font-medium text-slate-400 hover:text-white rounded-xl bg-slate-800/60 hover:bg-slate-800 transition">Close Window</button>
+            </div>
+
+            <!-- Cancel Button while rendering -->
+            <button id="cancelExportBtn" class="mt-2 text-xs text-slate-500 hover:text-slate-300 transition">Hide background task</button>
         </div>
     </div>
 
     <script>
+        // State Management
         let subtitles = [];
         let videoBlob = null;
-        let videoFileName = '';
+        let videoFileName = 'video.mp4';
+        let currentVideoObjectUrl = null;
+        let activeSubtitleIdx = -1;
 
-        const uploadArea = document.getElementById('uploadArea');
-        const fileInput = document.getElementById('videoFile');
-        const fileInfo = document.getElementById('fileInfo');
-        const fileName = document.getElementById('fileName');
-        const fileSize = document.getElementById('fileSize');
-        const uploadForm = document.getElementById('uploadForm');
-        const generateBtn = document.getElementById('generateBtn');
-        const progress = document.getElementById('progress');
-        const progressBar = document.getElementById('progressBar');
-        const status = document.getElementById('status');
+        // Subtitle Styles State
+        const styles = {
+            fontName: 'Montserrat',
+            fontSize: 32,
+            bold: true,
+            italic: false,
+            uppercase: false,
+            primaryColor: '#FFFFFF',
+            primaryAlpha: 1.0,
+            outlineColor: '#000000',
+            outlineWidth: 3.0,
+            backColor: '#000000',
+            backAlpha: 0.0,
+            borderStyle: 1,
+            shadow: 2.0,
+            shadowColor: '#000000',
+            alignment: 2,
+            position: 'bottom',
+            marginV: 50,
+            marginL: 30,
+            marginR: 30
+        };
+
+        // Style Presets
+        const PRESETS = {
+            viral: {
+                fontName: 'Montserrat',
+                fontSize: 38,
+                bold: true,
+                italic: false,
+                uppercase: true,
+                primaryColor: '#FFE600',
+                outlineColor: '#000000',
+                outlineWidth: 4.0,
+                backColor: '#000000',
+                backAlpha: 0.0,
+                borderStyle: 1,
+                shadow: 3.0,
+                alignment: 2,
+                position: 'bottom',
+                marginV: 60
+            },
+            cinema: {
+                fontName: 'Inter',
+                fontSize: 28,
+                bold: false,
+                italic: false,
+                uppercase: false,
+                primaryColor: '#FFFFFF',
+                outlineColor: '#000000',
+                outlineWidth: 1.5,
+                backColor: '#000000',
+                backAlpha: 0.0,
+                borderStyle: 1,
+                shadow: 1.5,
+                alignment: 2,
+                position: 'bottom',
+                marginV: 40
+            },
+            boxed: {
+                fontName: 'Outfit',
+                fontSize: 30,
+                bold: true,
+                italic: false,
+                uppercase: false,
+                primaryColor: '#FFFFFF',
+                outlineColor: '#000000',
+                outlineWidth: 0.0,
+                backColor: '#000000',
+                backAlpha: 0.85,
+                borderStyle: 3,
+                shadow: 0.0,
+                alignment: 2,
+                position: 'bottom',
+                marginV: 50
+            },
+            cyber: {
+                fontName: 'Poppins',
+                fontSize: 34,
+                bold: true,
+                italic: false,
+                uppercase: true,
+                primaryColor: '#00F0FF',
+                outlineColor: '#000000',
+                outlineWidth: 3.0,
+                backColor: '#FF0055',
+                backAlpha: 0.0,
+                borderStyle: 1,
+                shadow: 4.0,
+                shadowColor: '#FF0055',
+                alignment: 2,
+                position: 'bottom',
+                marginV: 50
+            },
+            contrast: {
+                fontName: 'Roboto',
+                fontSize: 32,
+                bold: true,
+                italic: false,
+                uppercase: false,
+                primaryColor: '#000000',
+                outlineColor: '#000000',
+                outlineWidth: 0.0,
+                backColor: '#FFE600',
+                backAlpha: 0.95,
+                borderStyle: 3,
+                shadow: 0.0,
+                alignment: 2,
+                position: 'bottom',
+                marginV: 45
+            },
+            minimal: {
+                fontName: 'Montserrat',
+                fontSize: 26,
+                bold: true,
+                italic: false,
+                uppercase: false,
+                primaryColor: '#FFFFFF',
+                outlineColor: '#000000',
+                outlineWidth: 2.0,
+                backColor: '#000000',
+                backAlpha: 0.0,
+                borderStyle: 1,
+                shadow: 1.0,
+                alignment: 2,
+                position: 'bottom',
+                marginV: 35
+            }
+        };
+
+        // DOM Elements
         const uploadSection = document.getElementById('uploadSection');
-        const editorSection = document.getElementById('editorSection');
+        const studioWorkspace = document.getElementById('studioWorkspace');
+        const dropArea = document.getElementById('dropArea');
+        const videoFileInput = document.getElementById('videoFileInput');
+        const selectedFileInfo = document.getElementById('selectedFileInfo');
+        const selectedFileName = document.getElementById('selectedFileName');
+        const selectedFileSize = document.getElementById('selectedFileSize');
+        const clearFileBtn = document.getElementById('clearFileBtn');
+        const uploadForm = document.getElementById('uploadForm');
+        const startTranscribeBtn = document.getElementById('startTranscribeBtn');
+        const manualEditBtn = document.getElementById('manualEditBtn');
+        const transcribeProgress = document.getElementById('transcribeProgress');
+        const transcribeProgressBar = document.getElementById('transcribeProgressBar');
+        const transcribeStatusText = document.getElementById('transcribeStatusText');
+
+        // Studio Elements
         const videoPlayer = document.getElementById('videoPlayer');
-        const videoSource = document.getElementById('videoSource');
-        const subtitleOverlay = document.getElementById('subtitleOverlay');
-        const showSubtitles = document.getElementById('showSubtitles');
-        const subtitleList = document.getElementById('subtitleList');
+        const videoTitleBadge = document.getElementById('videoTitleBadge');
+        const changeVideoBtn = document.getElementById('changeVideoBtn');
+        const headerVideoInput = document.getElementById('headerVideoInput');
+        const importVideoBtn = document.getElementById('importVideoBtn');
+        const subtitleCanvasOverlay = document.getElementById('subtitleCanvasOverlay');
+        const liveSubtitleBox = document.getElementById('liveSubtitleBox');
+        const skipBackBtn = document.getElementById('skipBackBtn');
+        const skipFwdBtn = document.getElementById('skipFwdBtn');
+        const timeDisplay = document.getElementById('timeDisplay');
+        const playbackSpeed = document.getElementById('playbackSpeed');
+        const showOverlayToggle = document.getElementById('showOverlayToggle');
+
+        // Style Controls Elements
+        const styleFontFamily = document.getElementById('styleFontFamily');
+        const styleFontSize = document.getElementById('styleFontSize');
+        const fontSizeDisplay = document.getElementById('fontSizeDisplay');
+        const toggleBold = document.getElementById('toggleBold');
+        const toggleItalic = document.getElementById('toggleItalic');
+        const toggleUpper = document.getElementById('toggleUpper');
+        const styleTextColor = document.getElementById('styleTextColor');
+        const styleTextColorHex = document.getElementById('styleTextColorHex');
+        const styleOutlineColor = document.getElementById('styleOutlineColor');
+        const styleOutlineWidth = document.getElementById('styleOutlineWidth');
+        const outlineWidthDisplay = document.getElementById('outlineWidthDisplay');
+        const styleBoxColor = document.getElementById('styleBoxColor');
+        const styleBoxOpacity = document.getElementById('styleBoxOpacity');
+        const boxOpacityDisplay = document.getElementById('boxOpacityDisplay');
+        const styleShadow = document.getElementById('styleShadow');
+        const shadowDisplay = document.getElementById('shadowDisplay');
+        const styleMarginV = document.getElementById('styleMarginV');
+        const marginVDisplay = document.getElementById('marginVDisplay');
+
+        // Timeline & Subtitles Elements
+        const subtitleCardsList = document.getElementById('subtitleCardsList');
+        const subCountBadge = document.getElementById('subCountBadge');
+        const addSubtitleAtCurrentBtn = document.getElementById('addSubtitleAtCurrentBtn');
+        const searchInput = document.getElementById('searchInput');
+        const replaceInput = document.getElementById('replaceInput');
+        const replaceAllBtn = document.getElementById('replaceAllBtn');
+
+        // Action Buttons
+        const importSrtBtn = document.getElementById('importSrtBtn');
+        const srtFileInput = document.getElementById('srtFileInput');
         const downloadSrtBtn = document.getElementById('downloadSrtBtn');
-        const addSubtitleBtn = document.getElementById('addSubtitleBtn');
+        const downloadAssBtn = document.getElementById('downloadAssBtn');
+        const exportVideoBtn = document.getElementById('exportVideoBtn');
+        const resetSessionBtn = document.getElementById('resetSessionBtn');
+
+        // Export Modal Elements
+        const exportModal = document.getElementById('exportModal');
+        const exportModalTitle = document.getElementById('exportModalTitle');
+        const exportModalStatus = document.getElementById('exportModalStatus');
+        const exportProgressPercent = document.getElementById('exportProgressPercent');
+        const exportSpeedBadge = document.getElementById('exportSpeedBadge');
+        const exportTimeBadge = document.getElementById('exportTimeBadge');
+        const exportProgressBar = document.getElementById('exportProgressBar');
+        const exportSpinnerIcon = document.getElementById('exportSpinnerIcon');
+        const exportSuccessIcon = document.getElementById('exportSuccessIcon');
+        const exportCompleteActions = document.getElementById('exportCompleteActions');
+        const downloadExportedVideoBtn = document.getElementById('downloadExportedVideoBtn');
+        const closeExportModalBtn = document.getElementById('closeExportModalBtn');
+        const cancelExportBtn = document.getElementById('cancelExportBtn');
+        let exportPollInterval = null;
 
         // Check system status
-        async function checkSystemStatus() {
+        async function fetchSystemStatus() {
             try {
-                const response = await fetch('/api/status');
-                const data = await response.json();
-                
-                // Update Python status
-                const pythonStatus = document.getElementById('pythonStatus');
-                const pythonVersion = document.getElementById('pythonVersion');
-                if (data.python) {
-                    pythonStatus.textContent = '✅';
-                    pythonVersion.textContent = data.python_version || 'Installed';
-                } else {
-                    pythonStatus.textContent = '❌';
-                    pythonVersion.textContent = 'Not found';
-                }
-
-                // Update FFmpeg status
-                const ffmpegStatus = document.getElementById('ffmpegStatus');
-                const ffmpegVersion = document.getElementById('ffmpegVersion');
-                if (data.ffmpeg) {
-                    ffmpegStatus.textContent = '✅';
-                    ffmpegVersion.textContent = 'Installed';
-                } else {
-                    ffmpegStatus.textContent = '❌';
-                    ffmpegVersion.textContent = 'Not found';
-                }
-
-                // Update Dependencies status
-                const depsStatus = document.getElementById('depsStatus');
-                const depsVersion = document.getElementById('depsVersion');
-                if (data.dependencies) {
-                    depsStatus.textContent = '✅';
-                    depsVersion.textContent = 'All installed';
-                } else {
-                    depsStatus.textContent = '❌';
-                    depsVersion.textContent = 'Missing';
-                }
-
-                // Update Device status
-                const deviceStatus = document.getElementById('deviceStatus');
-                const deviceInfo = document.getElementById('deviceInfo');
+                const res = await fetch('/api/status');
+                const data = await res.json();
+                const deviceText = document.getElementById('deviceStatusText');
                 if (data.device) {
-                    if (data.device.includes('CUDA') || data.device.includes('GPU')) {
-                        deviceStatus.textContent = '🚀';
-                        deviceInfo.textContent = data.device;
-                    } else {
-                        deviceStatus.textContent = '💻';
-                        deviceInfo.textContent = data.device;
-                    }
-                } else {
-                    deviceStatus.textContent = '❓';
-                    deviceInfo.textContent = 'Unknown';
+                    deviceText.textContent = data.device;
                 }
-
-            } catch (error) {
-                console.error('Failed to fetch system status:', error);
+                const ffmpegBadge = document.getElementById('ffmpegBadge');
+                if (data.ffmpeg) {
+                    ffmpegBadge.classList.remove('hidden');
+                }
+            } catch (e) {
+                console.warn('Status check:', e);
             }
         }
+        fetchSystemStatus();
 
-        // Check status on load
-        checkSystemStatus();
-
-        // Refresh status every 30 seconds
-        setInterval(checkSystemStatus, 30000);
-
-        // Upload area interactions
-        uploadArea.addEventListener('click', () => fileInput.click());
-
-        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
-            uploadArea.addEventListener(eventName, (e) => {
-                e.preventDefault();
-                e.stopPropagation();
-            });
-        });
-
-        ['dragenter', 'dragover'].forEach(eventName => {
-            uploadArea.addEventListener(eventName, () => {
-                uploadArea.classList.add('border-blue-500', 'bg-blue-50');
-            });
-        });
-
-        ['dragleave', 'drop'].forEach(eventName => {
-            uploadArea.addEventListener(eventName, () => {
-                uploadArea.classList.remove('border-blue-500', 'bg-blue-50');
-            });
-        });
-
-        uploadArea.addEventListener('drop', (e) => {
-            const files = e.dataTransfer.files;
-            if (files.length > 0) {
-                fileInput.files = files;
-                displayFileInfo(files[0]);
-            }
-        });
-
-        fileInput.addEventListener('change', (e) => {
-            if (e.target.files.length > 0) {
-                displayFileInfo(e.target.files[0]);
-            }
-        });
-
-        function displayFileInfo(file) {
-            fileName.textContent = file.name;
-            fileSize.textContent = formatFileSize(file.size);
-            fileInfo.classList.remove('hidden');
-            videoFileName = file.name;
+        // Load Video File directly into player
+        function loadVideoFile(file) {
+            if (!file) return;
             videoBlob = file;
+            videoFileName = file.name;
+            selectedFileName.textContent = file.name;
+            selectedFileSize.textContent = formatBytes(file.size);
+            selectedFileInfo.classList.remove('hidden');
+            dropArea.classList.add('hidden');
+            videoTitleBadge.textContent = file.name;
+
+            // Load into HTML5 video player
+            if (currentVideoObjectUrl) {
+                URL.revokeObjectURL(currentVideoObjectUrl);
+            }
+            currentVideoObjectUrl = URL.createObjectURL(file);
+            videoPlayer.src = currentVideoObjectUrl;
+            videoPlayer.load();
+            videoPlayer.onloadedmetadata = () => {
+                videoPlayer.currentTime = 0;
+                updateLiveSubtitleOverlay();
+            };
         }
 
-        function formatFileSize(bytes) {
-            if (bytes === 0) return '0 Bytes';
+        // File Selection Handlers
+        dropArea.addEventListener('click', () => videoFileInput.click());
+        ['dragenter', 'dragover'].forEach(e => dropArea.addEventListener(e, ev => { ev.preventDefault(); dropArea.classList.add('border-blue-500', 'bg-blue-950/40'); }));
+        ['dragleave', 'drop'].forEach(e => dropArea.addEventListener(e, ev => { ev.preventDefault(); dropArea.classList.remove('border-blue-500', 'bg-blue-950/40'); }));
+        dropArea.addEventListener('drop', ev => {
+            if (ev.dataTransfer.files.length > 0) {
+                loadVideoFile(ev.dataTransfer.files[0]);
+                videoFileInput.files = ev.dataTransfer.files;
+            }
+        });
+        videoFileInput.addEventListener('change', ev => {
+            if (ev.target.files.length > 0) {
+                loadVideoFile(ev.target.files[0]);
+            }
+        });
+
+        // Header / In-Studio Change Video
+        importVideoBtn.addEventListener('click', () => headerVideoInput.click());
+        changeVideoBtn.addEventListener('click', () => headerVideoInput.click());
+        headerVideoInput.addEventListener('change', ev => {
+            if (ev.target.files.length > 0) {
+                loadVideoFile(ev.target.files[0]);
+            }
+        });
+
+        clearFileBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            videoBlob = null;
+            videoFileInput.value = '';
+            selectedFileInfo.classList.add('hidden');
+            dropArea.classList.remove('hidden');
+        });
+
+        function formatBytes(bytes) {
+            if (!bytes) return '0 B';
             const k = 1024;
-            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const sizes = ['B', 'KB', 'MB', 'GB'];
             const i = Math.floor(Math.log(bytes) / Math.log(k));
-            return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
         }
 
-        // Form submission
+        // AI Transcription Submit
         uploadForm.addEventListener('submit', async (e) => {
             e.preventDefault();
+            if (!videoBlob) {
+                alert('Please choose or drop a video file first.');
+                return;
+            }
 
             const formData = new FormData(uploadForm);
             formData.append('returnType', 'text');
+            if (videoBlob) {
+                formData.set('video', videoBlob);
+            }
 
-            generateBtn.disabled = true;
-            progress.classList.remove('hidden');
-            progressBar.style.width = '60%';
-            status.textContent = 'Processing video and generating subtitles...';
+            startTranscribeBtn.disabled = true;
+            transcribeProgress.classList.remove('hidden');
+            transcribeProgressBar.style.width = '30%';
+            transcribeStatusText.textContent = 'Uploading & processing audio with Whisper AI...';
 
             try {
                 const response = await fetch('/upload', {
@@ -414,192 +886,527 @@
                 });
 
                 if (!response.ok) {
-                    throw new Error('Failed to generate subtitles');
+                    const errJson = await response.json().catch(() => ({}));
+                    throw new Error(errJson.error || 'Transcription failed');
                 }
 
-                const srtContent = await response.text();
-                progressBar.style.width = '100%';
-                status.textContent = 'Subtitles generated! Loading editor...';
+                transcribeProgressBar.style.width = '85%';
+                transcribeStatusText.textContent = 'Formatting Hinglish subtitles & timestamps...';
 
-                // Parse SRT and load editor
-                subtitles = parseSRT(srtContent);
-                loadEditor();
+                const srtText = await response.text();
+                subtitles = parseSRT(srtText);
+
+                transcribeProgressBar.style.width = '100%';
+                transcribeStatusText.textContent = 'Ready! Launching studio...';
 
                 setTimeout(() => {
-                    progress.classList.add('hidden');
-                    generateBtn.disabled = false;
-                    progressBar.style.width = '0%';
-                }, 1000);
+                    initStudioView();
+                }, 300);
 
-            } catch (error) {
-                status.textContent = 'Error: ' + error.message;
-                status.classList.add('text-red-600');
-                generateBtn.disabled = false;
-                progressBar.style.width = '0%';
+            } catch (err) {
+                alert('Error generating subtitles: ' + err.message);
+                transcribeProgress.classList.add('hidden');
+                startTranscribeBtn.disabled = false;
             }
         });
 
-        function parseSRT(srtContent) {
-            const blocks = srtContent.trim().split('\n\n');
-            return blocks.map(block => {
-                const lines = block.split('\n');
-                const index = parseInt(lines[0]);
-                const times = lines[1].split(' --> ');
-                const text = lines.slice(2).join('\n');
-                
-                return {
-                    index,
-                    startTime: times[0],
-                    endTime: times[1],
-                    text
-                };
-            });
-        }
-
-        function loadEditor() {
-            // Hide upload, show editor
-            uploadSection.classList.add('hidden');
-            editorSection.classList.remove('hidden');
-
-            // Load video
-            const videoUrl = URL.createObjectURL(videoBlob);
-            videoSource.src = videoUrl;
-            videoPlayer.load();
-
-            // Render subtitles
-            renderSubtitles();
-
-            // Enable download
-            downloadSrtBtn.disabled = false;
-        }
-
-        function renderSubtitles() {
-            subtitleList.innerHTML = '';
-            
-            subtitles.forEach((sub, idx) => {
-                const subDiv = document.createElement('div');
-                subDiv.className = 'subtitle-item p-3 border border-slate-200 rounded-lg';
-                subDiv.dataset.index = idx;
-                
-                subDiv.innerHTML = `
-                    <div class="flex items-start gap-2 mb-2">
-                        <span class="text-xs font-semibold text-slate-500 mt-1">#${sub.index}</span>
-                        <div class="flex-1 grid grid-cols-2 gap-2">
-                            <input type="text" value="${sub.startTime}" 
-                                   class="time-input px-2 py-1 text-xs border border-slate-300 rounded focus:ring-1 focus:ring-blue-500"
-                                   data-field="startTime" data-index="${idx}">
-                            <input type="text" value="${sub.endTime}" 
-                                   class="time-input px-2 py-1 text-xs border border-slate-300 rounded focus:ring-1 focus:ring-blue-500"
-                                   data-field="endTime" data-index="${idx}">
-                        </div>
-                        <button class="delete-btn text-red-600 hover:text-red-700" data-index="${idx}">
-                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
-                            </svg>
-                        </button>
-                    </div>
-                    <textarea class="w-full px-2 py-1 text-sm border border-slate-300 rounded focus:ring-1 focus:ring-blue-500 resize-none"
-                              rows="2" data-field="text" data-index="${idx}">${sub.text}</textarea>
-                `;
-                
-                subtitleList.appendChild(subDiv);
-            });
-
-            // Add event listeners
-            document.querySelectorAll('.time-input, textarea').forEach(input => {
-                input.addEventListener('input', handleSubtitleEdit);
-                input.addEventListener('click', handleSubtitleClick);
-            });
-
-            document.querySelectorAll('.delete-btn').forEach(btn => {
-                btn.addEventListener('click', handleSubtitleDelete);
-            });
-        }
-
-        function handleSubtitleEdit(e) {
-            const index = parseInt(e.target.dataset.index);
-            const field = e.target.dataset.field;
-            subtitles[index][field] = e.target.value;
-        }
-
-        function handleSubtitleClick(e) {
-            const index = parseInt(e.target.dataset.index);
-            const startTime = timeToSeconds(subtitles[index].startTime);
-            videoPlayer.currentTime = startTime;
-            
-            // Highlight active subtitle
-            document.querySelectorAll('.subtitle-item').forEach(item => {
-                item.classList.remove('active');
-            });
-            e.target.closest('.subtitle-item').classList.add('active');
-        }
-
-        function handleSubtitleDelete(e) {
-            const index = parseInt(e.target.dataset.index);
-            if (confirm('Delete this subtitle?')) {
-                subtitles.splice(index, 1);
-                // Reindex
-                subtitles.forEach((sub, idx) => {
-                    sub.index = idx + 1;
-                });
-                renderSubtitles();
+        // Manual Open / Skip Transcription
+        manualEditBtn.addEventListener('click', () => {
+            if (subtitles.length === 0) {
+                subtitles = [
+                    { index: 1, startTime: '00:00:00,500', endTime: '00:00:03,000', text: 'Welcome to Hinglish Subtitle Editor' }
+                ];
             }
+            initStudioView();
+        });
+
+        // Import SRT File
+        importSrtBtn.addEventListener('click', () => srtFileInput.click());
+        srtFileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                const srtContent = event.target.result;
+                subtitles = parseSRT(srtContent);
+                renderSubtitleCards();
+                applyStylesToLiveOverlay();
+                alert(`Loaded ${subtitles.length} subtitles from ${file.name}`);
+                if (uploadSection && !uploadSection.classList.contains('hidden')) {
+                    initStudioView();
+                }
+            };
+            reader.readAsText(file);
+        });
+
+        // Parse SRT string
+        function parseSRT(srtContent) {
+            const blocks = srtContent.trim().replace(/\r\n/g, '\n').split(/\n\n+/);
+            const parsed = [];
+            blocks.forEach((block) => {
+                const lines = block.trim().split('\n');
+                if (lines.length >= 2) {
+                    let timeLine = lines[1];
+                    let textLines = lines.slice(2);
+                    if (lines[0].includes('-->')) {
+                        timeLine = lines[0];
+                        textLines = lines.slice(1);
+                    }
+                    if (timeLine.includes('-->')) {
+                        const times = timeLine.split('-->').map(t => t.trim());
+                        parsed.push({
+                            index: parsed.length + 1,
+                            startTime: times[0],
+                            endTime: times[1],
+                            text: textLines.join('\n')
+                        });
+                    }
+                }
+            });
+            return parsed;
         }
 
-        // Add new subtitle
-        addSubtitleBtn.addEventListener('click', () => {
-            const currentTime = videoPlayer.currentTime;
+        // Generate SRT string
+        function generateSRT(subs) {
+            return subs.map((sub, idx) => {
+                return `${idx + 1}\n${sub.startTime} --> ${sub.endTime}\n${sub.text}\n`;
+            }).join('\n');
+        }
+
+        // Initialize Studio View
+        function initStudioView() {
+            uploadSection.classList.add('hidden');
+            studioWorkspace.classList.remove('hidden');
+
+            if (videoBlob && !videoPlayer.src) {
+                loadVideoFile(videoBlob);
+            }
+
+            renderSubtitleCards();
+            applyStylesToLiveOverlay();
+
+            downloadSrtBtn.disabled = false;
+            downloadAssBtn.disabled = false;
+            exportVideoBtn.disabled = false;
+        }
+
+        // Render Subtitle Timeline Cards
+        function renderSubtitleCards() {
+            subtitleCardsList.innerHTML = '';
+            subCountBadge.textContent = `${subtitles.length} items`;
+
+            subtitles.forEach((sub, idx) => {
+                const card = document.createElement('div');
+                card.className = `subtitle-card bg-slate-950 border border-slate-800 hover:border-slate-600 rounded-xl p-3 flex flex-col gap-2 ${idx === activeSubtitleIdx ? 'active-sub' : ''}`;
+                card.dataset.index = idx;
+
+                const durationSec = (timeToSeconds(sub.endTime) - timeToSeconds(sub.startTime)).toFixed(1);
+
+                card.innerHTML = `
+                    <div class="flex items-center justify-between gap-2">
+                        <div class="flex items-center gap-1.5">
+                            <span class="px-1.5 py-0.5 rounded bg-slate-800 text-[10px] font-bold text-slate-400">#${idx + 1}</span>
+                            <span class="text-[10px] text-slate-400 font-mono">${durationSec}s</span>
+                        </div>
+                        <div class="flex items-center gap-1">
+                            <button class="jump-time-btn p-1 text-slate-400 hover:text-blue-400 hover:bg-slate-800 rounded transition" data-index="${idx}" title="Seek video here">
+                                <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                            </button>
+                            <button class="split-sub-btn p-1 text-slate-400 hover:text-amber-400 hover:bg-slate-800 rounded transition" data-index="${idx}" title="Split subtitle at middle">
+                                ✂
+                            </button>
+                            <button class="delete-sub-btn p-1 text-slate-400 hover:text-red-400 hover:bg-slate-800 rounded transition" data-index="${idx}" title="Delete subtitle">
+                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-2 text-xs">
+                        <div class="flex items-center gap-1 bg-slate-900 px-2 py-1 rounded border border-slate-750">
+                            <span class="text-[10px] text-slate-400">In</span>
+                            <input type="text" value="${sub.startTime}" data-field="startTime" data-index="${idx}" class="w-full bg-transparent font-mono text-[11px] text-slate-200 outline-none">
+                            <button class="nudge-btn text-[10px] text-slate-400 hover:text-white" data-index="${idx}" data-field="startTime" data-nudge="-0.1">◀</button>
+                            <button class="nudge-btn text-[10px] text-slate-400 hover:text-white" data-index="${idx}" data-field="startTime" data-nudge="0.1">▶</button>
+                        </div>
+                        <div class="flex items-center gap-1 bg-slate-900 px-2 py-1 rounded border border-slate-750">
+                            <span class="text-[10px] text-slate-400">Out</span>
+                            <input type="text" value="${sub.endTime}" data-field="endTime" data-index="${idx}" class="w-full bg-transparent font-mono text-[11px] text-slate-200 outline-none">
+                            <button class="nudge-btn text-[10px] text-slate-400 hover:text-white" data-index="${idx}" data-field="endTime" data-nudge="-0.1">◀</button>
+                            <button class="nudge-btn text-[10px] text-slate-400 hover:text-white" data-index="${idx}" data-field="endTime" data-nudge="0.1">▶</button>
+                        </div>
+                    </div>
+
+                    <textarea data-field="text" data-index="${idx}" rows="2" class="w-full bg-slate-900 border border-slate-800 focus:border-blue-500 rounded-lg p-2 text-xs text-slate-100 outline-none resize-none font-medium">${sub.text}</textarea>
+                `;
+
+                subtitleCardsList.appendChild(card);
+            });
+
+            attachCardListeners();
+        }
+
+        function attachCardListeners() {
+            subtitleCardsList.querySelectorAll('input, textarea').forEach(el => {
+                el.addEventListener('input', (e) => {
+                    const idx = parseInt(e.target.dataset.index);
+                    const field = e.target.dataset.field;
+                    subtitles[idx][field] = e.target.value;
+                    updateLiveSubtitleOverlay();
+                });
+            });
+
+            subtitleCardsList.querySelectorAll('.jump-time-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const idx = parseInt(e.currentTarget.dataset.index);
+                    videoPlayer.currentTime = timeToSeconds(subtitles[idx].startTime);
+                    videoPlayer.play().catch(() => {});
+                });
+            });
+
+            subtitleCardsList.querySelectorAll('.split-sub-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const idx = parseInt(e.currentTarget.dataset.index);
+                    const curSub = subtitles[idx];
+                    const startSec = timeToSeconds(curSub.startTime);
+                    const endSec = timeToSeconds(curSub.endTime);
+                    const midSec = (startSec + endSec) / 2;
+
+                    const words = curSub.text.split(' ');
+                    const half = Math.ceil(words.length / 2);
+                    const text1 = words.slice(0, half).join(' ');
+                    const text2 = words.slice(half).join(' ');
+
+                    curSub.endTime = secondsToTime(midSec);
+                    curSub.text = text1;
+
+                    subtitles.splice(idx + 1, 0, {
+                        index: idx + 2,
+                        startTime: secondsToTime(midSec + 0.05),
+                        endTime: secondsToTime(endSec),
+                        text: text2 || '...'
+                    });
+
+                    subtitles.forEach((s, i) => s.index = i + 1);
+                    renderSubtitleCards();
+                });
+            });
+
+            subtitleCardsList.querySelectorAll('.delete-sub-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const idx = parseInt(e.currentTarget.dataset.index);
+                    if (confirm(`Delete subtitle #${idx + 1}?`)) {
+                        subtitles.splice(idx, 1);
+                        subtitles.forEach((s, i) => s.index = i + 1);
+                        renderSubtitleCards();
+                        updateLiveSubtitleOverlay();
+                    }
+                });
+            });
+
+            subtitleCardsList.querySelectorAll('.nudge-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const idx = parseInt(e.currentTarget.dataset.index);
+                    const field = e.currentTarget.dataset.field;
+                    const nudge = parseFloat(e.currentTarget.dataset.nudge);
+                    let sec = Math.max(0, timeToSeconds(subtitles[idx][field]) + nudge);
+                    subtitles[idx][field] = secondsToTime(sec);
+                    renderSubtitleCards();
+                    updateLiveSubtitleOverlay();
+                });
+            });
+        }
+
+        // Add subtitle at current video time
+        addSubtitleAtCurrentBtn.addEventListener('click', () => {
+            const curTime = videoPlayer.currentTime || 0;
             const newSub = {
                 index: subtitles.length + 1,
-                startTime: secondsToTime(currentTime),
-                endTime: secondsToTime(currentTime + 3),
-                text: 'New subtitle text'
+                startTime: secondsToTime(curTime),
+                endTime: secondsToTime(curTime + 2.5),
+                text: 'New Hinglish Subtitle'
             };
-            subtitles.push(newSub);
-            renderSubtitles();
-            subtitleList.scrollTop = subtitleList.scrollHeight;
+
+            let insertIdx = subtitles.findIndex(s => timeToSeconds(s.startTime) > curTime);
+            if (insertIdx === -1) {
+                subtitles.push(newSub);
+            } else {
+                subtitles.splice(insertIdx, 0, newSub);
+            }
+
+            subtitles.forEach((s, i) => s.index = i + 1);
+            renderSubtitleCards();
+
+            setTimeout(() => {
+                const newCard = subtitleCardsList.children[insertIdx === -1 ? subtitles.length - 1 : insertIdx];
+                if (newCard) newCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }, 100);
         });
 
-        // Video time update - show subtitle overlay
-        videoPlayer.addEventListener('timeupdate', () => {
-            if (!showSubtitles.checked) {
-                subtitleOverlay.classList.add('hidden');
+        // Search & Replace
+        replaceAllBtn.addEventListener('click', () => {
+            const findText = searchInput.value.trim();
+            const repText = replaceInput.value;
+            if (!findText) return;
+
+            let count = 0;
+            const regex = new RegExp(findText, 'gi');
+            subtitles.forEach(sub => {
+                if (regex.test(sub.text)) {
+                    sub.text = sub.text.replace(regex, repText);
+                    count++;
+                }
+            });
+
+            renderSubtitleCards();
+            updateLiveSubtitleOverlay();
+            alert(`Replaced ${count} occurrences of "${findText}"`);
+        });
+
+        // Time Shift
+        document.querySelectorAll('.shift-time-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const shift = parseFloat(e.currentTarget.dataset.shift);
+                subtitles.forEach(sub => {
+                    let s = Math.max(0, timeToSeconds(sub.startTime) + shift);
+                    let end = Math.max(0.1, timeToSeconds(sub.endTime) + shift);
+                    sub.startTime = secondsToTime(s);
+                    sub.endTime = secondsToTime(end);
+                });
+                renderSubtitleCards();
+                updateLiveSubtitleOverlay();
+            });
+        });
+
+        // Style Presets
+        document.querySelectorAll('.preset-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const presetKey = e.currentTarget.dataset.preset;
+                const preset = PRESETS[presetKey];
+                if (preset) {
+                    Object.assign(styles, preset);
+                    syncControlsWithStyles();
+                    applyStylesToLiveOverlay();
+                }
+            });
+        });
+
+        function syncControlsWithStyles() {
+            styleFontFamily.value = styles.fontName;
+            styleFontSize.value = styles.fontSize;
+            fontSizeDisplay.textContent = `${styles.fontSize}px`;
+            
+            toggleBold.classList.toggle('bg-blue-600', styles.bold);
+            toggleBold.classList.toggle('text-white', styles.bold);
+            toggleItalic.classList.toggle('bg-blue-600', styles.italic);
+            toggleItalic.classList.toggle('text-white', styles.italic);
+            toggleUpper.classList.toggle('bg-blue-600', styles.uppercase);
+            toggleUpper.classList.toggle('text-white', styles.uppercase);
+
+            styleTextColor.value = styles.primaryColor;
+            styleTextColorHex.value = styles.primaryColor;
+            styleOutlineColor.value = styles.outlineColor;
+            styleOutlineWidth.value = styles.outlineWidth;
+            outlineWidthDisplay.textContent = `${styles.outlineWidth}px`;
+
+            styleBoxColor.value = styles.backColor;
+            styleBoxOpacity.value = Math.round(styles.backAlpha * 100);
+            boxOpacityDisplay.textContent = `${Math.round(styles.backAlpha * 100)}%`;
+
+            styleShadow.value = styles.shadow;
+            shadowDisplay.textContent = `${styles.shadow}px`;
+
+            styleMarginV.value = styles.marginV;
+            marginVDisplay.textContent = `${styles.marginV}px`;
+        }
+
+        // Apply Styles to Live Video Overlay
+        function applyStylesToLiveOverlay() {
+            liveSubtitleBox.style.fontFamily = `"${styles.fontName}", sans-serif`;
+            liveSubtitleBox.style.fontSize = `${styles.fontSize}px`;
+            liveSubtitleBox.style.fontWeight = styles.bold ? '800' : '500';
+            liveSubtitleBox.style.fontStyle = styles.italic ? 'italic' : 'normal';
+            liveSubtitleBox.style.textTransform = styles.uppercase ? 'uppercase' : 'none';
+            liveSubtitleBox.style.color = styles.primaryColor;
+
+            if (styles.outlineWidth > 0) {
+                liveSubtitleBox.style.webkitTextStroke = `${styles.outlineWidth}px ${styles.outlineColor}`;
+            } else {
+                liveSubtitleBox.style.webkitTextStroke = 'none';
+            }
+
+            if (styles.shadow > 0) {
+                const sColor = styles.shadowColor || '#000000';
+                liveSubtitleBox.style.textShadow = `0px ${styles.shadow}px ${styles.shadow * 1.5}px ${sColor}`;
+            } else {
+                liveSubtitleBox.style.textShadow = 'none';
+            }
+
+            if (styles.backAlpha > 0) {
+                const rgb = hexToRgb(styles.backColor || '#000000');
+                liveSubtitleBox.style.backgroundColor = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${styles.backAlpha})`;
+                liveSubtitleBox.style.padding = '6px 14px';
+                liveSubtitleBox.style.borderRadius = '8px';
+            } else {
+                liveSubtitleBox.style.backgroundColor = 'transparent';
+                liveSubtitleBox.style.padding = '0';
+            }
+
+            subtitleCanvasOverlay.style.alignItems = styles.position === 'top' ? 'flex-start' : (styles.position === 'middle' ? 'center' : 'flex-end');
+            subtitleCanvasOverlay.style.paddingTop = styles.position === 'top' ? `${styles.marginV}px` : '24px';
+            subtitleCanvasOverlay.style.paddingBottom = styles.position === 'bottom' ? `${styles.marginV}px` : '24px';
+            liveSubtitleBox.style.textAlign = styles.alignment === 1 || styles.alignment === 7 ? 'left' : (styles.alignment === 3 || styles.alignment === 9 ? 'right' : 'center');
+        }
+
+        function hexToRgb(hex) {
+            hex = hex.replace('#', '');
+            if (hex.length === 3) hex = hex.split('').map(c => c + c).join('');
+            const num = parseInt(hex, 16) || 0;
+            return {
+                r: (num >> 16) & 255,
+                g: (num >> 8) & 255,
+                b: num & 255
+            };
+        }
+
+        // Live Style Input Listeners
+        styleFontFamily.addEventListener('change', (e) => { styles.fontName = e.target.value; applyStylesToLiveOverlay(); });
+        styleFontSize.addEventListener('input', (e) => { styles.fontSize = parseInt(e.target.value); fontSizeDisplay.textContent = `${styles.fontSize}px`; applyStylesToLiveOverlay(); });
+        
+        toggleBold.addEventListener('click', () => { styles.bold = !styles.bold; toggleBold.classList.toggle('bg-blue-600', styles.bold); toggleBold.classList.toggle('text-white', styles.bold); applyStylesToLiveOverlay(); });
+        toggleItalic.addEventListener('click', () => { styles.italic = !styles.italic; toggleItalic.classList.toggle('bg-blue-600', styles.italic); toggleItalic.classList.toggle('text-white', styles.italic); applyStylesToLiveOverlay(); });
+        toggleUpper.addEventListener('click', () => { styles.uppercase = !styles.uppercase; toggleUpper.classList.toggle('bg-blue-600', styles.uppercase); toggleUpper.classList.toggle('text-white', styles.uppercase); applyStylesToLiveOverlay(); updateLiveSubtitleOverlay(); });
+
+        styleTextColor.addEventListener('input', (e) => { styles.primaryColor = e.target.value; styleTextColorHex.value = e.target.value; applyStylesToLiveOverlay(); });
+        styleTextColorHex.addEventListener('input', (e) => { if (/^#[0-9A-F]{6}$/i.test(e.target.value)) { styles.primaryColor = e.target.value; styleTextColor.value = e.target.value; applyStylesToLiveOverlay(); } });
+
+        document.querySelectorAll('.color-dot').forEach(dot => {
+            dot.addEventListener('click', (e) => {
+                const color = e.currentTarget.dataset.color;
+                styles.primaryColor = color;
+                styleTextColor.value = color;
+                styleTextColorHex.value = color;
+                applyStylesToLiveOverlay();
+            });
+        });
+
+        styleOutlineColor.addEventListener('input', (e) => { styles.outlineColor = e.target.value; applyStylesToLiveOverlay(); });
+        styleOutlineWidth.addEventListener('input', (e) => { styles.outlineWidth = parseFloat(e.target.value); outlineWidthDisplay.textContent = `${styles.outlineWidth}px`; applyStylesToLiveOverlay(); });
+
+        styleBoxColor.addEventListener('input', (e) => { styles.backColor = e.target.value; applyStylesToLiveOverlay(); });
+        styleBoxOpacity.addEventListener('input', (e) => { styles.backAlpha = parseInt(e.target.value) / 100; styles.borderStyle = styles.backAlpha > 0.2 ? 3 : 1; boxOpacityDisplay.textContent = `${e.target.value}%`; applyStylesToLiveOverlay(); });
+
+        styleShadow.addEventListener('input', (e) => { styles.shadow = parseFloat(e.target.value); shadowDisplay.textContent = `${styles.shadow}px`; applyStylesToLiveOverlay(); });
+        styleMarginV.addEventListener('input', (e) => { styles.marginV = parseInt(e.target.value); marginVDisplay.textContent = `${styles.marginV}px`; applyStylesToLiveOverlay(); });
+
+        // Position Preset Buttons
+        document.querySelectorAll('.pos-preset-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                document.querySelectorAll('.pos-preset-btn').forEach(b => {
+                    b.classList.remove('bg-blue-600', 'border-blue-500', 'text-white', 'font-semibold');
+                    b.classList.add('bg-slate-900', 'border-slate-700', 'text-slate-300');
+                });
+                e.currentTarget.classList.remove('bg-slate-900', 'border-slate-700', 'text-slate-300');
+                e.currentTarget.classList.add('bg-blue-600', 'border-blue-500', 'text-white', 'font-semibold');
+
+                styles.position = e.currentTarget.dataset.pos;
+                styles.alignment = parseInt(e.currentTarget.dataset.align);
+                applyStylesToLiveOverlay();
+            });
+        });
+
+        // Video Playback & Time Synchronization
+        videoPlayer.addEventListener('timeupdate', updateLiveSubtitleOverlay);
+        skipBackBtn.addEventListener('click', () => { videoPlayer.currentTime = Math.max(0, videoPlayer.currentTime - 2); });
+        skipFwdBtn.addEventListener('click', () => { videoPlayer.currentTime = Math.min(videoPlayer.duration || 0, videoPlayer.currentTime + 2); });
+        playbackSpeed.addEventListener('change', (e) => { videoPlayer.playbackRate = parseFloat(e.target.value); });
+        showOverlayToggle.addEventListener('change', (e) => { subtitleCanvasOverlay.style.display = e.target.checked ? 'flex' : 'none'; });
+
+        // Update live subtitle overlay according to current video time
+        function updateLiveSubtitleOverlay() {
+            const curTime = videoPlayer.currentTime || 0;
+            const dur = videoPlayer.duration || 0;
+            timeDisplay.textContent = `${secondsToShortTime(curTime)} / ${secondsToShortTime(dur)}`;
+
+            if (!showOverlayToggle.checked) {
+                liveSubtitleBox.textContent = '';
                 return;
             }
 
-            const currentTime = videoPlayer.currentTime;
-            const currentSub = subtitles.find(sub => {
+            const currentSubIdx = subtitles.findIndex(sub => {
                 const start = timeToSeconds(sub.startTime);
                 const end = timeToSeconds(sub.endTime);
-                return currentTime >= start && currentTime <= end;
+                return curTime >= start && curTime <= end;
             });
 
-            if (currentSub) {
-                subtitleOverlay.textContent = currentSub.text;
-                subtitleOverlay.classList.remove('hidden');
-                
-                // Highlight in list
-                document.querySelectorAll('.subtitle-item').forEach((item, idx) => {
-                    if (idx === currentSub.index - 1) {
-                        item.classList.add('active');
-                        item.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-                    } else {
-                        item.classList.remove('active');
-                    }
-                });
-            } else {
-                subtitleOverlay.classList.add('hidden');
-                document.querySelectorAll('.subtitle-item').forEach(item => {
-                    item.classList.remove('active');
-                });
-            }
-        });
+            if (currentSubIdx !== -1) {
+                const sub = subtitles[currentSubIdx];
+                liveSubtitleBox.textContent = styles.uppercase ? sub.text.toUpperCase() : sub.text;
+                liveSubtitleBox.style.opacity = '1';
 
-        showSubtitles.addEventListener('change', () => {
-            if (!showSubtitles.checked) {
-                subtitleOverlay.classList.add('hidden');
+                if (activeSubtitleIdx !== currentSubIdx) {
+                    activeSubtitleIdx = currentSubIdx;
+                    highlightActiveCard(currentSubIdx);
+                }
+            } else {
+                liveSubtitleBox.textContent = '';
+                liveSubtitleBox.style.opacity = '0';
+                if (activeSubtitleIdx !== -1) {
+                    activeSubtitleIdx = -1;
+                    highlightActiveCard(-1);
+                }
             }
-        });
+        }
+
+        function highlightActiveCard(idx) {
+            document.querySelectorAll('.subtitle-card').forEach((card, i) => {
+                if (i === idx) {
+                    card.classList.add('active-sub');
+                    // Scroll ONLY inside subtitle list container (never scroll main window)
+                    const container = subtitleCardsList;
+                    if (container) {
+                        const cardTop = card.offsetTop - container.offsetTop;
+                        const cardBottom = cardTop + card.offsetHeight;
+                        const curScroll = container.scrollTop;
+                        const viewHeight = container.clientHeight;
+
+                        if (cardTop < curScroll) {
+                            container.scrollTo({ top: cardTop - 12, behavior: 'smooth' });
+                        } else if (cardBottom > curScroll + viewHeight) {
+                            container.scrollTo({ top: cardBottom - viewHeight + 12, behavior: 'smooth' });
+                        }
+                    }
+                } else {
+                    card.classList.remove('active-sub');
+                }
+            });
+        }
+
+        function timeToSeconds(timeStr) {
+            if (!timeStr) return 0;
+            const parts = timeStr.trim().split(':');
+            if (parts.length === 3) {
+                const h = parseInt(parts[0]) || 0;
+                const m = parseInt(parts[1]) || 0;
+                const s = parseFloat(parts[2].replace(',', '.')) || 0;
+                return h * 3600 + m * 60 + s;
+            }
+            return 0;
+        }
+
+        function secondsToTime(seconds) {
+            const h = Math.floor(seconds / 3600);
+            const m = Math.floor((seconds % 3600) / 60);
+            const s = Math.floor(seconds % 60);
+            const ms = Math.floor((seconds % 1) * 1000);
+            return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')},${String(ms).padStart(3, '0')}`;
+        }
+
+        function secondsToShortTime(seconds) {
+            const m = Math.floor(seconds / 60);
+            const s = Math.floor(seconds % 60);
+            const ms = Math.floor((seconds % 1) * 10);
+            return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}.${ms}`;
+        }
 
         // Download SRT
         downloadSrtBtn.addEventListener('click', () => {
@@ -608,35 +1415,189 @@
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = videoFileName.replace(/\.[^/.]+$/, '') + '.srt';
+            a.download = (videoFileName.replace(/\.[^/.]+$/, '') || 'hinglish_subtitles') + '.srt';
             document.body.appendChild(a);
             a.click();
-            URL.revokeObjectURL(url);
             document.body.removeChild(a);
+            URL.revokeObjectURL(url);
         });
 
-        function generateSRT(subs) {
-            return subs.map(sub => {
-                return `${sub.index}\n${sub.startTime} --> ${sub.endTime}\n${sub.text}\n`;
-            }).join('\n');
-        }
+        // Download ASS
+        downloadAssBtn.addEventListener('click', async () => {
+            try {
+                const res = await fetch('/export-ass', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        subtitles: subtitles,
+                        styles: styles,
+                        filename: (videoFileName.replace(/\.[^/.]+$/, '') || 'subtitles') + '.ass'
+                    })
+                });
+                if (!res.ok) throw new Error('Failed to generate ASS file');
+                const blob = await res.blob();
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = (videoFileName.replace(/\.[^/.]+$/, '') || 'subtitles') + '.ass';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            } catch (err) {
+                alert('Error downloading ASS: ' + err.message);
+            }
+        });
 
-        function timeToSeconds(timeStr) {
-            const parts = timeStr.split(':');
-            const hours = parseInt(parts[0]);
-            const minutes = parseInt(parts[1]);
-            const seconds = parseFloat(parts[2].replace(',', '.'));
-            return hours * 3600 + minutes * 60 + seconds;
-        }
+        // Export Video with Real-Time Progress Bar & Percentage
+        exportVideoBtn.addEventListener('click', async () => {
+            if (!videoBlob) {
+                alert('No video file loaded to export.');
+                return;
+            }
+            if (subtitles.length === 0) {
+                alert('Please create or load subtitles before exporting.');
+                return;
+            }
 
-        function secondsToTime(seconds) {
-            const hours = Math.floor(seconds / 3600);
-            const minutes = Math.floor((seconds % 3600) / 60);
-            const secs = seconds % 60;
-            const ms = Math.floor((secs % 1) * 1000);
-            
-            return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(Math.floor(secs)).padStart(2, '0')},${String(ms).padStart(3, '0')}`;
-        }
+            // Clear any previous intervals
+            if (exportPollInterval) {
+                clearInterval(exportPollInterval);
+                exportPollInterval = null;
+            }
+
+            // Reset modal UI state
+            exportModal.classList.remove('hidden');
+            exportCompleteActions.classList.add('hidden');
+            exportSpinnerIcon.classList.remove('hidden');
+            exportSuccessIcon.classList.add('hidden');
+            exportProgressBar.style.width = '0%';
+            exportProgressPercent.textContent = '0%';
+            exportSpeedBadge.textContent = '⚡ 1.0x';
+            exportTimeBadge.textContent = '⏱️ 00:00:00';
+            exportModalTitle.textContent = 'Rendering Video';
+            exportModalStatus.textContent = 'Initializing encoder and preparing subtitle tracks...';
+            downloadExportedVideoBtn.classList.remove('hidden');
+
+            const formData = new FormData();
+            formData.append('video', videoBlob);
+            formData.append('subtitles', JSON.stringify(subtitles));
+            formData.append('styles', JSON.stringify(styles));
+
+            try {
+                // 1. Trigger asynchronous export job
+                const startRes = await fetch('/start-export-video', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!startRes.ok) {
+                    const err = await startRes.json().catch(() => ({}));
+                    throw new Error(err.error || 'Failed to start video rendering job');
+                }
+
+                const startData = await startRes.json();
+                const jobId = startData.job_id;
+                const totalDuration = startData.duration || 0;
+
+                exportModalStatus.textContent = 'FFmpeg is burning styled subtitles into MP4...';
+
+                // 2. Poll progress every 350ms
+                exportPollInterval = setInterval(async () => {
+                    try {
+                        const progRes = await fetch(`/export-progress/${jobId}`);
+                        if (!progRes.ok) return;
+
+                        const data = await progRes.json();
+                        const status = data.status;
+
+                        if (status === 'rendering' || status === 'starting') {
+                            const rawPct = typeof data.progress === 'number' ? data.progress : 0;
+                            const pct = Math.min(99, Math.max(1, Math.round(rawPct * 10) / 10));
+                            
+                            exportProgressBar.style.width = `${pct}%`;
+                            exportProgressPercent.textContent = `${pct}%`;
+
+                            if (data.speed) {
+                                exportSpeedBadge.textContent = `⚡ ${data.speed}`;
+                            }
+                            if (data.out_time) {
+                                const outTimeClean = data.out_time.split('.')[0] || data.out_time.substring(0, 8);
+                                exportTimeBadge.textContent = `⏱️ ${outTimeClean}`;
+                            }
+                            exportModalStatus.textContent = `Encoding video frames (${pct}% complete)...`;
+                        }
+                        else if (status === 'complete') {
+                            clearInterval(exportPollInterval);
+                            exportPollInterval = null;
+
+                            exportProgressBar.style.width = '100%';
+                            exportProgressPercent.textContent = '100%';
+                            exportModalTitle.textContent = '🎉 Rendering Complete!';
+                            exportModalStatus.textContent = 'Your styled video is ready! Downloading automatically...';
+                            exportSpinnerIcon.classList.add('hidden');
+                            exportSuccessIcon.classList.remove('hidden');
+
+                            const downloadUrl = `/download-exported-video/${jobId}`;
+                            const downloadFilename = (videoFileName.replace(/\.[^/.]+$/, '') || 'video') + '_subtitled.mp4';
+
+                            downloadExportedVideoBtn.href = downloadUrl;
+                            downloadExportedVideoBtn.download = downloadFilename;
+                            exportCompleteActions.classList.remove('hidden');
+
+                            // Auto trigger browser download
+                            const autoLink = document.createElement('a');
+                            autoLink.href = downloadUrl;
+                            autoLink.download = downloadFilename;
+                            document.body.appendChild(autoLink);
+                            autoLink.click();
+                            document.body.removeChild(autoLink);
+                        }
+                        else if (status === 'error') {
+                            clearInterval(exportPollInterval);
+                            exportPollInterval = null;
+
+                            exportModalTitle.textContent = '❌ Export Failed';
+                            exportModalStatus.textContent = data.error || 'An error occurred during FFmpeg video rendering.';
+                            exportSpinnerIcon.classList.add('hidden');
+                            downloadExportedVideoBtn.classList.add('hidden');
+                            exportCompleteActions.classList.remove('hidden');
+                        }
+                    } catch (pollErr) {
+                        console.warn('Progress poll issue:', pollErr);
+                    }
+                }, 350);
+
+            } catch (err) {
+                if (exportPollInterval) {
+                    clearInterval(exportPollInterval);
+                    exportPollInterval = null;
+                }
+                exportModalTitle.textContent = '❌ Export Error';
+                exportModalStatus.textContent = err.message || 'Could not start export.';
+                exportSpinnerIcon.classList.add('hidden');
+                downloadExportedVideoBtn.classList.add('hidden');
+                exportCompleteActions.classList.remove('hidden');
+            }
+        });
+
+        closeExportModalBtn.addEventListener('click', () => {
+            if (exportPollInterval) {
+                clearInterval(exportPollInterval);
+                exportPollInterval = null;
+            }
+            exportModal.classList.add('hidden');
+        });
+
+        cancelExportBtn.addEventListener('click', () => {
+            exportModal.classList.add('hidden');
+        });
+
+        resetSessionBtn.addEventListener('click', () => {
+            if (confirm('Start a new session? Any unsaved edits will be cleared.')) {
+                window.location.reload();
+            }
+        });
     </script>
 </body>
 </html>
