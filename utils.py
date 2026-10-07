@@ -4,7 +4,12 @@ from typing import Tuple
 import librosa
 import numpy as np
 import torch
-import webrtcvad
+
+try:
+    import webrtcvad
+except ImportError:
+    webrtcvad = None
+
 from transformers import AutoModelForSpeechSeq2Seq, AutoProcessor, pipeline
 
 from logger import logger
@@ -98,7 +103,7 @@ def load_pipe(
 
 
 def audio_pre_processor(
-    audio: bytes, sr: int, encoding: str, vad: webrtcvad.Vad, target_sr: int = 16000
+    audio: bytes, sr: int, encoding: str, vad=None, target_sr: int = 16000
 ) -> Tuple[np.ndarray, bool]:
     """
     @function audio_pre_processor
@@ -106,13 +111,13 @@ def audio_pre_processor(
     @param audio: audio bytes received from client
     @param sr: sampling rate of the audio received
     @param encoding: encoding of the audio sent
-    @param vad: webrtcvad vad object to check for speech presence
+    @param vad: webrtcvad vad object to check for speech presence (optional)
     """
     if encoding == "mulaw":
         audio = audioop.ulaw2in(audio, 2)
 
     try:
-        is_speech_present = vad.is_speech(audio, sr)
+        is_speech_present = vad.is_speech(audio, sr) if vad else True
     except Exception:
         is_speech_present = False
 
