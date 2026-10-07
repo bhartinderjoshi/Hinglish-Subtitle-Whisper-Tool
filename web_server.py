@@ -770,6 +770,179 @@ def export_burned_video():
         return jsonify({'error': str(e)}), 500
 
 
+@app.route('/trim-media', methods=['POST'])
+def trim_media():
+    """
+    Trim / cut uploaded audio or video between start_time and end_time (in seconds)
+    """
+    if 'media' not in request.files:
+        return jsonify({'error': 'No media file provided'}), 400
+        
+    media_file = request.files['media']
+    if media_file.filename == '':
+        return jsonify({'error': 'Empty media file'}), 400
+        
+    try:
+        start_time = float(request.form.get('startTime', 0))
+        end_time = float(request.form.get('endTime', 0))
+    except (ValueError, TypeError):
+        return jsonify({'error': 'Invalid start or end time specified'}), 400
+        
+    if end_time <= start_time:
+        return jsonify({'error': 'End time must be greater than start time'}), 400
+        
+    temp_dir = tempfile.mkdtemp()
+    input_filename = secure_filename(media_file.filename) or 'input.mp4'
+    input_path = os.path.join(temp_dir, input_filename)
+    media_file.save(input_path)
+    
+    out_filename = Path(input_filename).stem + f"_trimmed_{int(start_time)}s_to_{int(end_time)}s.mp4"
+    out_path = os.path.join(temp_dir, out_filename)
+    
+    ffmpeg_bin = get_ffmpeg_binary()
+    
+    try:
+        # Re-encode cleanly to ensure exact frame precision on cut boundaries
+        cmd = [
+            ffmpeg_bin,
+            '-y',
+            '-ss', str(start_time),
+            '-to', str(end_time),
+            '-i', input_path,
+            '-c:v', 'libx264',
+            '-preset', 'fast',
+            '-crf', '19',
+            '-c:a', 'aac',
+            '-b:a', '192k',
+            out_path
+        ]
+        
+        logger.info(f"Trimming media: {cmd}")
+        res = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+        
+        # If input was audio-only without video track, fallback to pure audio container
+        if res.returncode != 0:
+            logger.warning(f"Video re-encode trim failed ({res.stderr[-200:]}), trying audio-only trim...")
+            out_audio_name = Path(input_filename).stem + f"_trimmed_{int(start_time)}s_to_{int(end_time)}s.mp3"
+            out_path = os.path.join(temp_dir, out_audio_name)
+            out_filename = out_audio_name
+            cmd_audio = [
+                ffmpeg_bin,
+                '-y',
+                '-ss', str(start_time),
+                '-to', str(end_time),
+                '-i', input_path,
+                '-c:a', 'aac',
+                '-b:a', '192k',
+                out_path
+            ]
+            res_audio = subprocess.run(cmd_audio, capture_output=True, text=True, timeout=120)
+            if res_audio.returncode != 0:
+                raise RuntimeError(f"FFmpeg trim failed: {res_audio.stderr[-300:]}")
+                
+        if not os.path.exists(out_path) or os.path.getsize(out_path) == 0:
+            raise RuntimeError("Trimmed media output file is empty")
+            
+        mimetype = 'video/mp4' if out_filename.endswith('.mp4') else 'audio/mpeg'
+        return send_file(
+            out_path,
+            as_attachment=True,
+            download_name=out_filename,
+            mimetype=mimetype
+        )
+    except Exception as e:
+        logger.error(f"Error trimming media: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/combine-audio-image', methods=['POST'])
+def combine_audio_image():
+    """
+    Create an MP4 video from an audio file and an image cover/poster, with optional duration and aspect ratio
+    """
+    if 'audio' not in request.files or 'image' not in request.files:
+        return jsonify({'error': 'Both audio and image files are required'}), 400
+        
+    audio_file = request.files['audio']
+    image_file = request.files['image']
+    
+    if audio_file.filename == '' or image_file.filename == '':
+        return jsonify({'error': 'Missing audio or image filename'}), 400
+        
+    aspect_ratio = request.form.get('aspectRatio', '9:16')  # '9:16' (Reels), '16:9' (Landscape), '1:1' (Square)
+    try:
+        custom_duration = float(request.form.get('duration', 0))
+    except (ValueError, TypeError):
+        custom_duration = 0.0
+        
+    temp_dir = tempfile.mkdtemp()
+    audio_filename = secure_filename(audio_file.filename) or 'audio.mp3'
+    image_filename = secure_filename(image_file.filename) or 'cover.jpg'
+    
+    audio_path = os.path.join(temp_dir, audio_filename)
+    image_path = os.path.join(temp_dir, image_filename)
+    
+    audio_file.save(audio_path)
+    image_file.save(image_path)
+    
+    out_video_name = Path(audio_filename).stem + '_with_cover.mp4'
+    out_video_path = os.path.join(temp_dir, out_video_name)
+    
+    # Scale filters for common aspect ratios
+    if aspect_ratio == '9:16':
+        vf_filter = "scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2:black"
+    elif aspect_ratio == '16:9':
+        vf_filter = "scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2:black"
+    elif aspect_ratio == '1:1':
+        vf_filter = "scale=1080:1080:force_original_aspect_ratio=decrease,pad=1080:1080:(ow-iw)/2:(oh-ih)/2:black"
+    else:
+        vf_filter = "scale=trunc(iw/2)*2:trunc(ih/2)*2"
+        
+    ffmpeg_bin = get_ffmpeg_binary()
+    
+    try:
+        cmd = [
+            ffmpeg_bin,
+            '-y',
+            '-loop', '1',
+            '-i', image_path,
+            '-i', audio_path,
+            '-vf', vf_filter,
+            '-c:v', 'libx264',
+            '-tune', 'stillimage',
+            '-preset', 'fast',
+            '-crf', '19',
+            '-c:a', 'aac',
+            '-b:a', '192k',
+            '-pix_fmt', 'yuv420p'
+        ]
+        
+        if custom_duration > 0:
+            cmd.extend(['-t', str(custom_duration)])
+        else:
+            cmd.append('-shortest')
+            
+        cmd.append(out_video_path)
+        
+        logger.info(f"Combining audio & image to video: {cmd}")
+        res = subprocess.run(cmd, capture_output=True, text=True, timeout=180)
+        if res.returncode != 0:
+            raise RuntimeError(f"FFmpeg combine failed: {res.stderr[-300:]}")
+            
+        if not os.path.exists(out_video_path) or os.path.getsize(out_video_path) == 0:
+            raise RuntimeError("Generated combined video file is empty")
+            
+        return send_file(
+            out_video_path,
+            as_attachment=True,
+            download_name=out_video_name,
+            mimetype='video/mp4'
+        )
+    except Exception as e:
+        logger.error(f"Error combining audio and image: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Video to SRT API Server')
     parser.add_argument('--host', default='0.0.0.0', help='Host to bind')

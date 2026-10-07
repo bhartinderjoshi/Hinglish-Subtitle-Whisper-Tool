@@ -90,10 +90,22 @@ def test_async_export_and_progress_endpoints():
     assert res_bad.status_code == 400
 
 
+def test_trim_and_combine_endpoints():
+    client = app.test_client()
+    # Test trim without media
+    res_trim_bad = client.post('/trim-media')
+    assert res_trim_bad.status_code == 400
+
+    # Test combine without files
+    res_comb_bad = client.post('/combine-audio-image')
+    assert res_comb_bad.status_code == 400
+
+
 if __name__ == '__main__':
     test_hex_to_ass_color()
     test_srt_time_to_ass_time()
     test_generate_ass_script()
     test_export_ass_endpoint()
     test_async_export_and_progress_endpoints()
-    print("✓ All subtitle editor & export tests passed successfully!")
+    test_trim_and_combine_endpoints()
+    print("✓ All subtitle editor, trim, and media tests passed successfully!")
