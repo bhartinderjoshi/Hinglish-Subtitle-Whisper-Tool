@@ -467,17 +467,27 @@ def video_to_srt(
         logger.info("Conditioning on previous text: DISABLED - prevents stopping at pauses")
         logger.info("Empty words removal: ENABLED - removes words with no speech")
         
-        result = whisper.transcribe(
-            model,
-            audio,
-            language="hi",  # Hindi/Hinglish
-            vad=True,  # Enable VAD to filter silence and reduce hallucinations
-            no_speech_threshold=vad_threshold,  # User-configurable threshold (0.1-0.9, higher = stricter)
-            condition_on_previous_text=False,  # CRITICAL: Prevents stopping at gaps/pauses
-            remove_empty_words=True,  # Clean up words with no speech
-            detect_disfluencies=False,  # Don't transcribe "um", "uh" etc
-            plot_word_alignment=False  # Set True for debugging
-        )
+        try:
+            result = whisper.transcribe(
+                model,
+                audio,
+                language="hi",  # Hindi/Hinglish
+                vad=True,  # Enable VAD to filter silence and reduce hallucinations
+                no_speech_threshold=vad_threshold,  # User-configurable threshold (0.1-0.9, higher = stricter)
+                condition_on_previous_text=False,  # CRITICAL: Prevents stopping at gaps/pauses
+                remove_empty_words=True,  # Clean up words with no speech
+                detect_disfluencies=False,  # Don't transcribe "um", "uh" etc
+                plot_word_alignment=False  # Set True for debugging
+            )
+        except Exception as vad_err:
+            logger.warning(f"VAD transcribe failed or encountered empty audio slice ({vad_err}). Retrying with standard alignment...")
+            result = whisper.transcribe(
+                model,
+                audio,
+                language="hi",
+                vad=False,
+                condition_on_previous_text=False
+            )
 
         # Validate transcription result
         logger.info(f"Transcription complete")

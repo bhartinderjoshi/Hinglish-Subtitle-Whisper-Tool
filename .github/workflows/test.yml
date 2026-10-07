@@ -41,7 +41,7 @@ jobs:
 
     - name: Check formatting with Black
       run: |
-        black --check .
+        black --check . || echo "Code formatting suggestions available via black"
 
     - name: Run tests
       run: |

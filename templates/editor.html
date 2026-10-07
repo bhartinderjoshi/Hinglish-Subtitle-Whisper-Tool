@@ -2381,7 +2381,10 @@
 
             try {
                 const res = await fetch('/upload', { method: 'POST', body: formData });
-                if (!res.ok) throw new Error('Transcription failed');
+                if (!res.ok) {
+                    const errData = await res.json().catch(() => ({}));
+                    throw new Error(errData.error || `Server error (${res.status})`);
+                }
                 const srtText = await res.text();
                 state.subtitles = parseSRT(srtText);
                 renderSubtitleCardsList();
@@ -2389,7 +2392,7 @@
                 updateTotalTimelineDuration();
                 alert(`✓ Generated ${state.subtitles.length} Hinglish subtitles (${maxWordsVal} words/line)!`);
             } catch (err) {
-                alert('Error: ' + err.message);
+                alert('Transcription Error: ' + err.message);
             } finally {
                 runAiTranscriptionBtn.disabled = false;
                 runAiTranscriptionBtn.innerHTML = origText;
