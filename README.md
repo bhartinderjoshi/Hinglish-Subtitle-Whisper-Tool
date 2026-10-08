@@ -1,3 +1,14 @@
+---
+title: Whisper Subtitle Generator
+emoji: 🎬
+colorFrom: indigo
+colorTo: purple
+sdk: docker
+app_port: 7860
+pinned: false
+license: apache-2.0
+---
+
 # **Whisper-Hindi2Hinglish + Video-to-SRT**
 
 > **🔗 Fork Notice**: This is a fork of [OriserveAI/Whisper-Hindi2Hinglish](https://github.com/OriserveAI/Whisper-Hindi2Hinglish) by Oriserve AI team.
