@@ -13,22 +13,22 @@ jobs:
     steps:
       - name: Checkout GitHub repository
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          lfs: true
 
-      - name: Prepare and Push to Hugging Face
+      - name: Deploy Clean Code to Hugging Face Space
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
+          # Create a clean deployment directory with only application source code
+          mkdir -p /tmp/hf_deployment
+          rsync -av --exclude='.git' --exclude='.github' --exclude='examples' --exclude='*.wav' --exclude='*.mp4' --exclude='__pycache__' ./ /tmp/hf_deployment/
+          
+          cd /tmp/hf_deployment
+          git init -b main
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-
-          # Remove any binary audio/video files from git tracking so Hugging Face Space doesn't reject them
-          git rm -r --cached --ignore-unmatch *.wav *.mp4 examples/*.wav || true
+          git add .
+          git commit -m "Deploy latest Hinglish Subtitle Whisper Tool from GitHub"
           
-          if ! git diff --cached --quiet; then
-            git commit -m "Remove binary files for Hugging Face Space sync"
-          fi
-
-          git push --force https://BhartInderJoshi06:$HF_TOKEN@huggingface.co/spaces/BhartInderJoshi06/whisper-subtitle-generator HEAD:main
+          # Push clean deployment commit to Hugging Face Space
+          git push --force https://BhartInderJoshi06:$HF_TOKEN@huggingface.co/spaces/BhartInderJoshi06/whisper-subtitle-generator main:main
+          echo "✓ Successfully deployed clean codebase to Hugging Face Spaces!"
